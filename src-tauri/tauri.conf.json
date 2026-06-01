@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "TTRPG Convert CLI UI",
+  "version": "2.0.0",
+  "identifier": "dev.obsidianttrpg.cliui",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "TTRPG Convert CLI UI",
+        "width": 980,
+        "height": 720,
+        "minWidth": 820,
+        "minHeight": 560,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Utility",
+    "shortDescription": "Cross-platform helper for ttrpg-convert-cli",
+    "longDescription": "A cross-platform (Windows, macOS, Linux) UI that walks you through installing the ttrpg-convert-cli, building a config file, and converting 5etools/pf2etools content into Obsidian-friendly Markdown."
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

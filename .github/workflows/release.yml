@@ -1,0 +1,151 @@
+name: Release
+
+# Tag-triggered (e.g. `git tag v2.0.0 && git push --tags`), matching the
+# convention used across the org's other plugins.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  # 1. Gate the release on the test suite.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm test
+
+  # 2. Create a DRAFT release whose body is real release notes: an optional
+  #    hand-written CHANGELOG section for the tag, followed by GitHub's
+  #    auto-generated "What's Changed", followed by install instructions.
+  create-release:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assemble release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME}"
+          VER="${TAG#v}"
+          : > notes.md
+
+          # (a) Hand-written section from CHANGELOG.md, if one matches this version.
+          if [ -f CHANGELOG.md ]; then
+            awk -v ver="$VER" '
+              /^## /  { if (found) exit; if (index($0, ver) > 0) { found = 1; print; next } }
+                      { if (found) print }
+            ' CHANGELOG.md > section.md || true
+            if [ -s section.md ]; then
+              cat section.md >> notes.md
+              printf "\n\n" >> notes.md
+            fi
+          fi
+
+          # (b) GitHub's auto-generated notes (commits/PRs since the previous tag).
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="$TAG" --jq .body >> notes.md 2>/dev/null || true
+
+          # (c) Install footer.
+          cat >> notes.md <<'EOF'
+
+          ---
+          ### Install
+          - **Windows** — `.msi` or `.exe`
+          - **macOS** — `.dmg` (unsigned: right-click -> Open the first time). Apple Silicon and Intel builds are provided separately.
+          - **Linux** — `.AppImage` or `.deb`
+
+          On first launch the app downloads the `ttrpg-convert-cli` binary for your OS and you point it at your 5etools data — no Java required.
+          EOF
+
+          echo "----- assembled notes -----"; cat notes.md
+
+      - name: Create or update the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          TITLE="TTRPG Convert CLI UI ${TAG}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --draft=true --title "$TITLE" --notes-file notes.md
+          else
+            gh release create "$TAG" --draft --title "$TITLE" --notes-file notes.md
+          fi
+
+  # 3. Build native installers on each OS and upload them to the draft release.
+  build:
+    needs: create-release
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest # Apple Silicon (arm64)
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-latest # Intel (x86_64)
+            args: "--target x86_64-apple-darwin"
+          - platform: ubuntu-22.04 # Linux x86_64
+            args: ""
+          - platform: windows-latest # Windows x86_64
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev build-essential curl wget file \
+            libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - name: Build the app and upload to the draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Match the tag/release created above; no releaseBody, so the
+          # assembled notes are preserved.
+          tagName: ${{ github.ref_name }}
+          releaseName: "TTRPG Convert CLI UI ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  # 4. Publish (un-draft) only once every platform build has succeeded.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false
