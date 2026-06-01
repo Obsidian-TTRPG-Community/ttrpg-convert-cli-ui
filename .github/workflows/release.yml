@@ -73,10 +73,13 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME}"
           TITLE="TTRPG Convert CLI UI ${TAG}"
+          # Tags like v2.0.0-rc2 / v2.1.0-beta are pre-releases.
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft=true --title "$TITLE" --notes-file notes.md
+            gh release edit "$TAG" --draft=true --title "$TITLE" --notes-file notes.md $PRE
           else
-            gh release create "$TAG" --draft --title "$TITLE" --notes-file notes.md
+            gh release create "$TAG" --draft --title "$TITLE" --notes-file notes.md $PRE
           fi
 
   # 3. Build native installers on each OS and upload them to the draft release.
