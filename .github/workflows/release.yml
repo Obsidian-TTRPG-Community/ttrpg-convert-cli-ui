@@ -1,7 +1,6 @@
 name: Release
 
-# Tag-triggered (e.g. `git tag v2.0.0 && git push --tags`), matching the
-# convention used across the org's other plugins.
+# Tag-triggered (e.g. `git tag v2.0.0 && git push --tags`).
 on:
   push:
     tags:
@@ -9,6 +8,11 @@ on:
 
 permissions:
   contents: write
+
+# Use bash on every OS (incl. Git Bash on Windows) so the shell steps match.
+defaults:
+  run:
+    shell: bash
 
 jobs:
   # 1. Gate the release on the test suite.
@@ -22,9 +26,7 @@ jobs:
       - run: npm install
       - run: npm test
 
-  # 2. Create a DRAFT release whose body is real release notes: an optional
-  #    hand-written CHANGELOG section for the tag, followed by GitHub's
-  #    auto-generated "What's Changed", followed by install instructions.
+  # 2. Create a DRAFT release with real notes (CHANGELOG section + auto notes).
   create-release:
     needs: test
     runs-on: ubuntu-latest
@@ -41,8 +43,6 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           VER="${TAG#v}"
           : > notes.md
-
-          # (a) Hand-written section from CHANGELOG.md, if one matches this version.
           if [ -f CHANGELOG.md ]; then
             awk -v ver="$VER" '
               /^## /  { if (found) exit; if (index($0, ver) > 0) { found = 1; print; next } }
@@ -53,12 +53,8 @@ jobs:
               printf "\n\n" >> notes.md
             fi
           fi
-
-          # (b) GitHub's auto-generated notes (commits/PRs since the previous tag).
           gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
             -f tag_name="$TAG" --jq .body >> notes.md 2>/dev/null || true
-
-          # (c) Install footer.
           cat >> notes.md <<'EOF'
 
           ---
@@ -69,8 +65,7 @@ jobs:
 
           On first launch the app downloads the `ttrpg-convert-cli` binary for your OS and you point it at your 5etools data — no Java required.
           EOF
-
-          echo "----- assembled notes -----"; cat notes.md
+          echo "----- notes -----"; cat notes.md
 
       - name: Create or update the draft release
         env:
@@ -87,8 +82,6 @@ jobs:
   # 3. Build native installers on each OS and upload them to the draft release.
   build:
     needs: create-release
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +91,7 @@ jobs:
           - platform: macos-latest # Intel (x86_64)
             args: "--target x86_64-apple-darwin"
           - platform: ubuntu-22.04 # Linux x86_64
-            args: ""
+            args: "--bundles deb,appimage"
           - platform: windows-latest # Windows x86_64
             args: ""
     runs-on: ${{ matrix.platform }}
@@ -106,20 +99,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Linux build dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: "./src-tauri -> target"
+      - name: Add macOS Rust targets
+        if: runner.os == 'macOS'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - uses: actions/setup-node@v4
         with:
@@ -127,20 +116,26 @@ jobs:
 
       - run: npm install
 
-      - name: Build the app and upload to the draft release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          # Match the tag/release created above; no releaseBody, so the
-          # assembled notes are preserved.
-          tagName: ${{ github.ref_name }}
-          releaseName: "TTRPG Convert CLI UI ${{ github.ref_name }}"
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+      # Tauri's beforeBuildCommand runs `npm run build` (tsc + vite) for us.
+      - name: Build installers
+        run: npm run tauri -- build ${{ matrix.args }}
 
-  # 4. Publish (un-draft) only once every platform build has succeeded.
+      - name: Upload installers to the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          count=$(find src-tauri/target -path "*/release/bundle/*" -type f \
+            \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) | wc -l)
+          echo "found $count installer(s)"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No installers were produced"; find src-tauri/target -path "*/bundle/*" -type f || true; exit 1
+          fi
+          find src-tauri/target -path "*/release/bundle/*" -type f \
+            \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" -o -name "*.AppImage" -o -name "*.deb" \) -print0 \
+            | xargs -0 -I{} gh release upload "$TAG" "{}" --clobber
+
+  # 4. Publish (un-draft) once every platform build has succeeded.
   publish:
     needs: build
     runs-on: ubuntu-latest
