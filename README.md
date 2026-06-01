@@ -8,7 +8,8 @@ built on **Tauri 2** (Rust core + TypeScript frontend).
 
 Grab the installer for your OS from the [Releases](../../releases) page:
 
-- **Windows** — `.msi` or `.exe`
+- **Windows** — `.msi` or `.exe`. Unsigned, so SmartScreen warns on first run —
+  see [Windows: "protected your PC"](#windows-protected-your-pc) below.
 - **macOS** — `.dmg` (Apple Silicon or Intel — pick yours). The app isn't
   signed with an Apple Developer certificate, so macOS may block it on first
   launch — see [macOS: "app is damaged"](#macos-app-is-damaged) below.
@@ -86,6 +87,9 @@ attaches them to a GitHub release with auto-generated notes. See `CHANGELOG.md`.
 - **macOS builds are unsigned** (no Apple Developer cert). They're ad-hoc signed
   in CI so the OS shows the normal "unidentified developer" gate rather than a
   hard error, but quarantine can still block first launch — see below.
+- **Windows builds are unsigned** (no code-signing certificate) — SmartScreen
+  warns on first run; see below. A certificate (paid) is the only thing that
+  removes it; not currently set up.
 
 ### macOS: "app is damaged"
 
@@ -100,5 +104,14 @@ xattr -cr "/Applications/TTRPG Convert CLI UI.app"
 
 Then open it normally. Proper Apple notarisation (which removes this entirely)
 needs a paid Apple Developer account and is a possible future addition.
+
+### Windows: "protected your PC"
+
+Because the app isn't signed with a code-signing certificate, Windows SmartScreen
+shows a blue *"Windows protected your PC"* dialog the first time you run the
+installer. The app is fine — click **More info**, then **Run anyway**. Your
+browser may also flag the download as uncommon; choose **Keep**. A code-signing
+certificate (paid, and reputation builds over time) is the only thing that
+removes this, and isn't currently set up.
 - **PF2e is not yet supported** — the tool currently targets the 5etools data
   source and `tools5e` templates. Pathfinder support is a possible future addition.

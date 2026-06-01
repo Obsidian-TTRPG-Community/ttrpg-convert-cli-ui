@@ -59,7 +59,7 @@ jobs:
 
           ---
           ### Install
-          - **Windows** — `.msi` or `.exe`
+          - **Windows** — `.msi` or `.exe`. Unsigned, so SmartScreen shows "Windows protected your PC" on first run — click **More info → Run anyway**.
           - **macOS** — `.dmg` (Apple Silicon and Intel builds provided). If macOS says the app is "damaged" or from an unidentified developer, it's just Gatekeeper quarantining an unsigned download — clear it with: `xattr -cr "/Applications/TTRPG Convert CLI UI.app"` then open normally.
           - **Linux** — `.AppImage` or `.deb`
 
