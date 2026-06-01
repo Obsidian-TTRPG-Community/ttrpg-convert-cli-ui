@@ -113,5 +113,5 @@ installer. The app is fine — click **More info**, then **Run anyway**. Your
 browser may also flag the download as uncommon; choose **Keep**. A code-signing
 certificate (paid, and reputation builds over time) is the only thing that
 removes this, and isn't currently set up.
-- **PF2e is not yet supported** — the tool currently targets the 5etools data
-  source and `tools5e` templates. Pathfinder support is a possible future addition.
+- **PF2e is not supported** — the tool currently targets the 5etools data
+  source and `tools5e` templates. Pathfinder support is not planned at this time. PF2e methods are documented [HERE](https://obsidianttrpgtutorials.com/Obsidian+TTRPG+Tutorials/Community+Supported+Games/Pathfinder+2e/Pathfinder+2e).
