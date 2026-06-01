@@ -9,8 +9,9 @@ built on **Tauri 2** (Rust core + TypeScript frontend).
 Grab the installer for your OS from the [Releases](../../releases) page:
 
 - **Windows** — `.msi` or `.exe`
-- **macOS** — `.dmg` (unsigned: right-click → **Open** the first time). Pick the
-  Apple Silicon or Intel build for your Mac.
+- **macOS** — `.dmg` (Apple Silicon or Intel — pick yours). The app isn't
+  signed with an Apple Developer certificate, so macOS may block it on first
+  launch — see [macOS: "app is damaged"](#macos-app-is-damaged) below.
 - **Linux** — `.AppImage` or `.deb`
 
 No Java needed — on first launch the app downloads the `ttrpg-convert-cli`
@@ -82,7 +83,22 @@ attaches them to a GitHub release with auto-generated notes. See `CHANGELOG.md`.
 
 ## Notes & limitations
 
-- **macOS builds are unsigned** (no Apple Developer cert) — first launch needs
-  right-click → **Open**. Notarisation is a separate setup if wanted.
+- **macOS builds are unsigned** (no Apple Developer cert). They're ad-hoc signed
+  in CI so the OS shows the normal "unidentified developer" gate rather than a
+  hard error, but quarantine can still block first launch — see below.
+
+### macOS: "app is damaged"
+
+If macOS says the app *"is damaged and can't be opened"* (most common on Apple
+Silicon) or *"can't be opened because it is from an unidentified developer"*,
+that's Gatekeeper quarantining an unsigned download — the app is fine. Clear the
+quarantine flag from Terminal (adjust the path to wherever the app is):
+
+```sh
+xattr -cr "/Applications/TTRPG Convert CLI UI.app"
+```
+
+Then open it normally. Proper Apple notarisation (which removes this entirely)
+needs a paid Apple Developer account and is a possible future addition.
 - **PF2e is not yet supported** — the tool currently targets the 5etools data
   source and `tools5e` templates. Pathfinder support is a possible future addition.

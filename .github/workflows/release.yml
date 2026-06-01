@@ -60,7 +60,7 @@ jobs:
           ---
           ### Install
           - **Windows** — `.msi` or `.exe`
-          - **macOS** — `.dmg` (unsigned: right-click -> Open the first time). Apple Silicon and Intel builds are provided separately.
+          - **macOS** — `.dmg` (Apple Silicon and Intel builds provided). If macOS says the app is "damaged" or from an unidentified developer, it's just Gatekeeper quarantining an unsigned download — clear it with: `xattr -cr "/Applications/TTRPG Convert CLI UI.app"` then open normally.
           - **Linux** — `.AppImage` or `.deb`
 
           On first launch the app downloads the `ttrpg-convert-cli` binary for your OS and you point it at your 5etools data — no Java required.
@@ -121,6 +121,11 @@ jobs:
 
       # Tauri's beforeBuildCommand runs `npm run build` (tsc + vite) for us.
       - name: Build installers
+        env:
+          # Ad-hoc sign macOS builds ("-") so Gatekeeper shows the recoverable
+          # "unidentified developer" gate rather than a hard "damaged" error.
+          # Ignored on Linux/Windows.
+          APPLE_SIGNING_IDENTITY: "-"
         run: npm run tauri -- build ${{ matrix.args }}
 
       - name: Upload installers to the draft release
