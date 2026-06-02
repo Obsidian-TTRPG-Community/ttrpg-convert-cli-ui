@@ -17,6 +17,12 @@ import {
 } from "./platform";
 import { parseIndexKeys } from "./index";
 import { parseSourceList, type SourceEntry } from "./sources";
+import {
+  APP_RELEASES_API,
+  pickAppUpdate,
+  type AppUpdate,
+  type GithubRelease,
+} from "./update-check";
 
 export interface Progress {
   phase: string;
@@ -46,6 +52,25 @@ export async function fetchLatestRelease(): Promise<ReleaseAsset[]> {
   if (!res.ok) throw new Error(`GitHub API ${res.status}`);
   const json = (await res.json()) as { assets: ReleaseAsset[] };
   return json.assets ?? [];
+}
+
+/**
+ * Check this app's own GitHub releases for a newer stable version. Returns the
+ * update details if one exists, else null. Fail-silent: any network/API error
+ * resolves to null so a flaky connection never blocks or disrupts startup.
+ */
+export async function checkAppUpdate(currentVersion: string): Promise<AppUpdate | null> {
+  try {
+    const res = await fetch(APP_RELEASES_API, {
+      method: "GET",
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as GithubRelease;
+    return pickAppUpdate(json, currentVersion);
+  } catch {
+    return null;
+  }
 }
 
 /** Install the native converter for this host into `home`. Returns exe path. */

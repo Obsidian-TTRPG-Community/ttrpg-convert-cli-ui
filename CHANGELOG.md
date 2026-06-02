@@ -35,6 +35,12 @@ guided **post-conversion checklist**, plus an important Apple Silicon fix.
 - A clear warning — on both Configure and Run — when the chosen monster template
   will produce plain Markdown instead of Fantasy Statblocks, with how to switch.
 
+### Updates
+- The app now **checks for new releases on launch** and shows a dismissible
+  banner ("Update available — vX.Y.Z") with a Download button to the releases
+  page when a newer stable version is published. The check is silent on failure
+  and never blocks startup; prereleases don't trigger it.
+
 ### Fixes
 - **Apple Silicon Macs now download the correct converter.** The arm64 build is
   published as `osx-aarch_64` (underscore), which the asset matcher didn't

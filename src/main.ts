@@ -8,17 +8,21 @@ import { buildConfigJson, configToFields, toList, TEMPLATE_KEYS_5E, type ConfigI
 import {
   detectHost, pathExists, findConverter, installCli, installTemplates, runConverter, gitClone, gitPull,
   writeConfigFile, readTextFile, listTemplates, listConfigs, loadIndexKeys, loadSources,
-  pickHomebrewFile, pickFolder, joinHome, TEMPLATES_REL, saveTemplate, readTemplate, openPath, type Progress,
+  pickHomebrewFile, pickFolder, joinHome, TEMPLATES_REL, saveTemplate, readTemplate, openPath,
+  checkAppUpdate, type Progress,
 } from "./lib/cli";
+import { APP_RELEASES_PAGE, type AppUpdate } from "./lib/update-check";
 import { filterKeys } from "./lib/index";
 import { type SourceEntry } from "./lib/sources";
 import { renderTemplatePreview, buildSample, buildVariableTree, type VarNode } from "./lib/template-creator";
 import { conversionGuidance, pluginUrl } from "./lib/guidance";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
+import { getVersion } from "@tauri-apps/api/app";
 import { loadState, saveState, DEFAULT_STATE, type PersistedState, type Theme } from "./lib/settings";
 
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 let state: PersistedState = { ...DEFAULT_STATE };
+let appVersion = ""; // filled from Tauri's getVersion() at startup
 const persist = () => void saveState(state);
 let indexKeys: string[] = []; // transient, from all-index.json
 let creatorTree: VarNode[] = [];
@@ -1041,6 +1045,33 @@ $("#open-output").addEventListener("click", () => {
   openPath(joinHome(state.cliHome, out)).catch((e) => log(`Could not open folder: ${e}`));
 });
 
+/* ---- update check (lightweight: notify only, manual download) ---- */
+function showUpdateBanner(update: AppUpdate) {
+  const banner = $("#update-banner") as HTMLElement;
+  $("#update-banner-text").textContent =
+    `Update available — ${update.tag}. You're on v${appVersion}.`;
+  const dl = $("#update-download") as HTMLButtonElement;
+  dl.onclick = () => openUrl(update.url || APP_RELEASES_PAGE).catch((e) => log(`${e}`));
+  ($("#update-dismiss") as HTMLButtonElement).onclick = () => (banner.hidden = true);
+  banner.hidden = false;
+}
+
+async function checkForUpdate() {
+  try {
+    appVersion = await getVersion();
+  } catch {
+    return; // not running under Tauri (e.g. dev preview) — skip silently
+  }
+  if (!appVersion) return; // no usable version → don't risk a false banner
+  const update = await checkAppUpdate(appVersion);
+  if (update) {
+    log(`Update available: ${update.tag} (you're on v${appVersion}).`);
+    showUpdateBanner(update);
+  } else {
+    log(`Up to date (v${appVersion}).`);
+  }
+}
+
 /* ---- startup ---- */
 async function init() {
   detectHost()
@@ -1072,5 +1103,8 @@ async function init() {
       renderIndexResults("");
     } catch { /* no cached index yet — that's fine */ }
   }
+
+  // Non-blocking: check GitHub for a newer release and surface a banner.
+  void checkForUpdate();
 }
 void init();
