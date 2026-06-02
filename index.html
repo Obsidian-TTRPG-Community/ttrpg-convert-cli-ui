@@ -128,7 +128,7 @@
             </div>
 
             <details class="advanced">
-              <summary>Advanced: source index &amp; content filters <span class="hint">most users can skip this</span></summary>
+              <summary>Advanced: source index, content filters &amp; defaults <span class="hint">most users can skip this</span></summary>
               <div class="advanced-body">
                 <p class="hint" style="margin:0 0 10px">
                   Optional fine-grained control. Generate the index to discover every data key, then
@@ -149,6 +149,13 @@
                 </div>
                 <label>Exclude pattern <span class="hint">regex; escape pipes as \\|</span></label>
                 <textarea data-cfg="excludePattern" rows="2" placeholder="race\\|.*\\|dmg"></textarea>
+
+                <label style="margin-top:14px">Default source overrides <span class="hint">type=SOURCE, comma-separated</span></label>
+                <input data-cfg="defaultSource" type="text" placeholder="monster=XMM, item=XDMG, spell=XPHB" />
+                <p class="hint" style="margin:6px 0 0">
+                  Sets the canonical printing per type so reprints get clean names (no <code>-XMM</code> suffix).
+                  Handy for 2024-only setups. If you change this after a run, clear the old output first — filenames shift.
+                </p>
               </div>
             </details>
 
@@ -179,13 +186,17 @@
               <label class="check"><input type="checkbox" data-cfg="racesAsSpecies" /> races as species</label>
               <label class="check"><input type="checkbox" data-cfg="onlyReferencedTables" /> only referenced tables</label>
             </div>
-            <label>Default source overrides <span class="hint">type=SOURCE, comma-separated</span></label>
-            <input data-cfg="defaultSource" type="text" placeholder="monster=XMM, item=XDMG" />
 
             <div class="section-head"><span>Templates</span>
-              <button class="btn link sm" id="refresh-templates">refresh ⟳</button>
+              <span class="head-actions">
+                <button class="btn link sm" id="template-guide-btn">guide ?</button>
+                <button class="btn ghost sm" id="open-creator">Template Creator</button>
+                <button class="btn ghost sm" id="apply-recommended">Recommended</button>
+                <button class="btn link sm" id="refresh-templates">refresh ⟳</button>
+              </span>
             </div>
             <div id="template-grid" class="tpl-grid"></div>
+            <div id="statblock-notice" class="notice" hidden></div>
           </div>
 
           <div class="preview">
@@ -221,6 +232,10 @@
           <label>Command preview <span class="hint">runs with working dir = home</span></label>
           <pre id="command-preview" class="cmd"><code>ttrpg-convert</code></pre>
         </div>
+        <div class="step">
+          <label>After it finishes <span class="hint">getting the notes into Obsidian</span></label>
+          <div class="guidance" id="run-guidance"></div>
+        </div>
         <div class="row">
           <button class="btn primary" id="run-cli">Run converter</button>
           <button class="btn ghost" id="open-output">Open output folder</button>
@@ -232,6 +247,112 @@
         <pre id="log" class="log"></pre>
       </div>
     </main>
+
+    <!-- template creator modal -->
+    <div id="creator-modal" class="modal" hidden>
+      <div class="modal-box creator">
+        <div class="modal-head">
+          <span>Template Creator</span>
+          <button id="creator-close" class="btn ghost sm">✕</button>
+        </div>
+
+        <div class="creator-controls">
+          <label class="ctrl">Type
+            <select id="creator-type"></select>
+          </label>
+          <label class="ctrl">Start from
+            <select id="creator-startfrom"><option value="">— blank —</option></select>
+          </label>
+          <span class="creator-snips">
+            <button class="btn ghost sm snip" data-snip="frontmatter">+ frontmatter</button>
+            <button class="btn ghost sm snip" data-snip="if">+ if</button>
+            <button class="btn ghost sm snip" data-snip="for">+ for</button>
+            <button class="btn ghost sm snip" data-snip="each">+ each</button>
+            <button class="btn ghost sm snip" data-snip="image">+ image block</button>
+          </span>
+        </div>
+
+        <div class="creator-main">
+          <aside class="creator-vars-panel">
+            <input id="creator-search" type="text" spellcheck="false" placeholder="Filter variables…" />
+            <div id="creator-vars" class="var-tree"></div>
+          </aside>
+          <div class="creator-right">
+            <div class="creator-pane">
+              <div class="pane-label">Template</div>
+              <textarea id="creator-editor" spellcheck="false" placeholder="Build your template here, click variables on the left, or pick one in “Start from”."></textarea>
+            </div>
+            <div class="creator-pane">
+              <div class="pane-label">Preview <span class="approx">approximate — not the converter's exact output</span></div>
+              <div id="creator-preview" class="preview-render"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="creator-foot">
+          <label class="ctrl grow">File name
+            <input id="creator-filename" type="text" spellcheck="false" placeholder="my-background2md.txt" />
+          </label>
+          <button id="creator-save" class="btn primary">Save template</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- template guide modal -->
+    <div id="guide-modal" class="modal" hidden>
+      <div class="modal-box guide">
+        <div class="modal-head">
+          <span>Template guide</span>
+          <button id="guide-modal-close" class="btn ghost sm">✕</button>
+        </div>
+        <div class="guide-body">
+          <p>Every content type — a monster, a spell, an item — is turned into a Markdown
+          note by a <strong>template</strong>, using the
+          <button class="btn link sm ext-link" data-url="https://quarkus.io/guides/qute-reference">Qute</button>
+          templating engine. In the Templates section you choose which template <em>file</em>
+          renders each type. The converter ships a full set (the <em>Get templates</em> step on
+          Setup) — most people start from those and tweak.</p>
+
+          <h4>The files you'll see in each dropdown</h4>
+          <ul>
+            <li><code>&lt;type&gt;2md.txt</code> — the standard layout.</li>
+            <li><code>images-&lt;type&gt;2md.txt</code> — same, but embeds portrait/art (needs images copied).</li>
+            <li><code>monster2md-yamlStatblock-body.txt</code> — emits a Fantasy Statblocks YAML block (turn on the Fantasy Statblocks toggle).</li>
+          </ul>
+          <p class="hint">Tip: the <strong>Recommended</strong> button fills every type with a good default from what you have installed.</p>
+
+          <h4>Qute syntax you'll actually edit</h4>
+          <ul>
+            <li><code>{resource.name}</code> — drop in a field (name, source, text…).</li>
+            <li><code>{#if resource.prerequisite}…{/if}</code> — only render when the field exists.</li>
+            <li><code>{#for tag in resource.tags}- {tag}{/for}</code> — loop over a list.</li>
+            <li><code>{resource.text}</code> — the fully-rendered body text.</li>
+            <li>Everything between the top <code>---</code> markers becomes the note's YAML frontmatter.</li>
+          </ul>
+
+          <h4>A minimal example</h4>
+          <pre class="guide-code">---
+tags:
+{#for tag in resource.tags}- {tag}
+{/for}---
+# {resource.name}
+*Source: {resource.source}*
+
+{#if resource.prerequisite}**Prerequisite:** {resource.prerequisite}
+
+{/if}
+{resource.text}</pre>
+
+          <h4>Learn the full field list</h4>
+          <p>Each type exposes different fields. The complete, authoritative references:</p>
+          <div class="guide-links">
+            <button class="btn ghost sm ext-link" data-url="https://github.com/ebullient/ttrpg-convert-cli/blob/main/docs/configuration.md">CLI config &amp; templates docs ↗</button>
+            <button class="btn ghost sm ext-link" data-url="https://obsidianttrpgtutorials.com/Obsidian+TTRPG+Tutorials/Plugin+Tutorials/TTRPG-Convert-CLI/TTRPG-Convert-CLI+Templates">Community template tutorial ↗</button>
+            <button class="btn ghost sm ext-link" data-url="https://github.com/ebullient/ttrpg-convert-cli/tree/main/examples/templates">All example templates ↗</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- source picker modal -->
     <div id="source-modal" class="modal" hidden>

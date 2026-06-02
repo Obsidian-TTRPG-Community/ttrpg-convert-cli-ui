@@ -29,10 +29,12 @@ const OS_TOKENS: Record<OsKind, string[]> = {
   linux: ["linux"],
 };
 
-/** Architecture tokens, most-specific first. */
+/** Architecture tokens, most-specific first.
+ *  NB: the converter's GraalVM builds use os-maven-plugin classifiers with an
+ *  underscore — `x86_64` and `aarch_64` — so both spellings must be matched. */
 const ARCH_TOKENS: Record<ArchKind, string[]> = {
-  x64: ["x86_64", "amd64", "x64", "x86-64"],
-  arm64: ["aarch64", "arm64", "apple-silicon", "applesilicon"],
+  x64: ["x86_64", "x86-64", "amd64", "x64"],
+  arm64: ["aarch_64", "aarch64", "aarch-64", "arm64", "apple-silicon", "applesilicon"],
 };
 
 /** A GitHub release asset (only the fields we need). */

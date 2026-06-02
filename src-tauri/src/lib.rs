@@ -36,8 +36,27 @@ fn detect_host() -> HostInfo {
     } else {
         "linux"
     };
-    let arch = if cfg!(target_arch = "aarch64") { "arm64" } else { "x64" };
-    HostInfo { os: os.to_string(), arch: arch.to_string() }
+    HostInfo { os: os.to_string(), arch: host_arch().to_string() }
+}
+
+/// Detect the host CPU architecture. `cfg!(target_arch)` only tells us what the
+/// app was *compiled* for, which is wrong when an x86_64 build runs on Apple
+/// Silicon under Rosetta. On macOS we additionally check `sysctl.proc_translated`
+/// — a value of 1 means we're being translated, so the real hardware is arm64.
+fn host_arch() -> &'static str {
+    if cfg!(target_arch = "aarch64") {
+        return "arm64";
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        if let Ok(out) = Command::new("sysctl").arg("-n").arg("sysctl.proc_translated").output() {
+            if String::from_utf8_lossy(&out.stdout).trim() == "1" {
+                return "arm64"; // x86_64 process translated on Apple Silicon
+            }
+        }
+    }
+    "x64"
 }
 
 #[derive(Serialize, Clone)]
@@ -203,6 +222,27 @@ fn path_exists(path: String) -> bool {
     Path::new(&path).exists()
 }
 
+/// Open a folder (or file) in the OS file manager. Runs in the Rust backend, so
+/// it bypasses the shell plugin's URL-only `open` scope that rejects file paths.
+#[tauri::command]
+fn open_path(path: String) -> Result<(), String> {
+    use std::process::Command;
+    let p = Path::new(&path);
+    if !p.exists() {
+        return Err(format!("path does not exist: {path}"));
+    }
+    let result = if cfg!(target_os = "windows") {
+        Command::new("explorer").arg(&path).spawn()
+    } else if cfg!(target_os = "macos") {
+        Command::new("open").arg(&path).spawn()
+    } else {
+        Command::new("xdg-open").arg(&path).spawn()
+    };
+    // On Windows, `explorer` returns a non-zero exit code even on success, so we
+    // only treat a spawn failure (binary missing) as an error.
+    result.map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// Locate the converter executable under `home` WITHOUT walking the large data
 /// folders (5etools-img, etc.). Checks home/bin and home/<exe> directly, then
 /// recurses only into top-level dirs whose name starts with "ttrpg-convert"
@@ -292,6 +332,7 @@ pub fn run() {
             read_text_file,
             list_files,
             path_exists,
+            open_path,
             find_converter
         ])
         .run(tauri::generate_context!())

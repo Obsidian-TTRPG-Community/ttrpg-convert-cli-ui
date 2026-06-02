@@ -36,9 +36,13 @@ Everything lives under one **CLI home** folder and is fetched a single time:
 
 The **Setup** tab shows a persistent library status (✓ when something is present
 on disk), so reopening the app shows what's already downloaded. **Configure**
-builds and saves named config files. **Run** picks a saved config and invokes the
-converter with the working directory set to home — so the config name, data
-folder, and output folder all resolve relative to it, exactly like the original.
+builds and saves named config files, with a **Template guide**, a one-click
+**Recommended** template preset, and a **Template Creator** for authoring Qute
+templates against the variables your installed templates expose. **Run** picks a
+saved config and invokes the converter with the working directory set to home —
+so the config name, data folder, and output folder all resolve relative to it,
+exactly like the original — then shows a guided **"after it finishes"** checklist
+of the Obsidian plugins, CSS and admonition files to set up.
 
 ## Architecture
 

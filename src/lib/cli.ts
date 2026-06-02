@@ -149,6 +149,25 @@ export function readTextFile(path: string): Promise<string> {
   return invoke<string>("read_text_file", { path });
 }
 
+/** Open a folder (or file) in the OS file manager (native, not via shell scope). */
+export function openPath(path: string): Promise<void> {
+  return invoke("open_path", { path });
+}
+
+/** Read a named template file from home/TEMPLATES_REL. */
+export function readTemplate(home: string, fileName: string): Promise<string> {
+  const dir = joinHome(home, TEMPLATES_REL.replace(/\//g, sep(home)));
+  return readTextFile(joinHome(dir, fileName));
+}
+
+/** Write a template file into home/TEMPLATES_REL (parent dirs are created). Returns the path. */
+export async function saveTemplate(home: string, fileName: string, text: string): Promise<string> {
+  const dir = joinHome(home, TEMPLATES_REL.replace(/\//g, sep(home)));
+  const path = joinHome(dir, fileName);
+  await invoke("write_text_file", { path, contents: text });
+  return path;
+}
+
 /** Read & parse all-index.json from the output folder (after a --index run). */
 export async function loadIndexKeys(home: string, outputFolder: string): Promise<string[]> {
   const path = joinHome(home, outputFolder, "all-index.json");

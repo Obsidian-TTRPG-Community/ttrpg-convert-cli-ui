@@ -66,6 +66,25 @@ describe("selectAsset", () => {
     )!;
     expect(exact.score).toBeGreaterThan(osOnly.score);
   });
+
+  // Regression: the live 3.3.1 assets use os-maven-plugin classifiers with an
+  // underscore (`aarch_64`). The Intel zip used to win on Apple Silicon because
+  // `aarch_64` wasn't recognised and the x86_64 Rosetta-fallback outscored it.
+  const real: ReleaseAsset[] = [
+    { name: "ttrpg-convert-cli-3.3.1-linux-x86_64.zip", browser_download_url: url("l.zip") },
+    { name: "ttrpg-convert-cli-3.3.1-osx-aarch_64.zip", browser_download_url: url("m-arm.zip") },
+    { name: "ttrpg-convert-cli-3.3.1-osx-x86_64.zip", browser_download_url: url("m-intel.zip") },
+    { name: "ttrpg-convert-cli-3.3.1-windows-x86_64.zip", browser_download_url: url("w.zip") },
+    { name: "ttrpg-convert-cli-3.3.1-runner.jar", browser_download_url: url("r.jar") },
+  ];
+  it("picks osx-aarch_64 (not the Intel zip) on Apple Silicon — real 3.3.1 names", () => {
+    const m = selectAsset(real, host("macos", "arm64"));
+    expect(m?.asset.name).toBe("ttrpg-convert-cli-3.3.1-osx-aarch_64.zip");
+  });
+  it("picks osx-x86_64 on Intel macs — real 3.3.1 names", () => {
+    const m = selectAsset(real, host("macos", "x64"));
+    expect(m?.asset.name).toBe("ttrpg-convert-cli-3.3.1-osx-x86_64.zip");
+  });
 });
 
 describe("executableName", () => {

@@ -4,14 +4,16 @@
  * defaultSource overrides, racesAsSpecies / onlyReferencedTables, every 5e
  * template key, an index-driven key picker, and run-time log/debug/verbose flags.
  */
-import { buildConfigJson, configToFields, TEMPLATE_KEYS_5E, type ConfigInput, type TemplateKey } from "./lib/config";
+import { buildConfigJson, configToFields, toList, TEMPLATE_KEYS_5E, type ConfigInput, type TemplateKey } from "./lib/config";
 import {
   detectHost, pathExists, findConverter, installCli, installTemplates, runConverter, gitClone, gitPull,
   writeConfigFile, readTextFile, listTemplates, listConfigs, loadIndexKeys, loadSources,
-  pickHomebrewFile, pickFolder, joinHome, TEMPLATES_REL, type Progress,
+  pickHomebrewFile, pickFolder, joinHome, TEMPLATES_REL, saveTemplate, readTemplate, openPath, type Progress,
 } from "./lib/cli";
 import { filterKeys } from "./lib/index";
-import { mergeCodes, type SourceEntry } from "./lib/sources";
+import { type SourceEntry } from "./lib/sources";
+import { renderTemplatePreview, buildSample, buildVariableTree, type VarNode } from "./lib/template-creator";
+import { conversionGuidance, pluginUrl } from "./lib/guidance";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { loadState, saveState, DEFAULT_STATE, type PersistedState, type Theme } from "./lib/settings";
 
@@ -19,6 +21,8 @@ const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySele
 let state: PersistedState = { ...DEFAULT_STATE };
 const persist = () => void saveState(state);
 let indexKeys: string[] = []; // transient, from all-index.json
+let creatorTree: VarNode[] = [];
+let creatorTreeEmpty = true;
 const INDEX_OUT = "_index"; // throwaway output folder used to generate the index
 const sourceCache: Partial<Record<"book" | "adventure", SourceEntry[]>> = {};
 
@@ -80,7 +84,7 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((tab) =>
     tab.classList.add("active");
     $(`#tab-${tab.dataset.tab}`).classList.add("active");
     if (tab.dataset.tab === "config") void refreshTemplates();
-    if (tab.dataset.tab === "run") void refreshConfigList();
+    if (tab.dataset.tab === "run") { void refreshConfigList(); void renderRunGuidance(); }
   }),
 );
 setRunReady(false); // locked until refreshConfigList finds a saved config
@@ -155,6 +159,26 @@ function applyConfigFields(f: Record<string, string | boolean>) {
 }
 function refreshConfigPreview() {
   $("#config-preview").querySelector("code")!.textContent = buildConfigJson(readConfigInput());
+  refreshStatblockNotice();
+}
+
+/** Configure-tab banner: make it obvious whether monsters will be Fantasy Statblocks or plain Markdown. */
+function refreshStatblockNotice() {
+  const el = $("#statblock-notice");
+  const mt = (cfgEl("tpl_monster") as HTMLSelectElement)?.value ?? "";
+  if (!mt) { el.hidden = true; return; }
+  const g = conversionGuidance({ monsterTemplate: mt, diceRoller: false });
+  el.hidden = false;
+  if (g.usingStatblocks) {
+    el.className = "notice ok";
+    el.innerHTML = "✓ Monster notes will use <strong>Fantasy Statblocks</strong> — you'll need that plugin installed in Obsidian.";
+  } else {
+    el.className = "notice warn";
+    el.innerHTML =
+      "⚠ This monster template produces <strong>plain Markdown</strong>, not Fantasy Statblocks. " +
+      "For Fantasy Statblocks, tick <strong>Fantasy Statblocks</strong> above and choose a monster template with " +
+      "<code>statblock</code> in the name — or click <strong>Recommended</strong>.";
+  }
 }
 
 document.querySelectorAll("[data-cfg]").forEach((el) =>
@@ -223,6 +247,263 @@ async function refreshTemplates() {
   }
 }
 $("#refresh-templates").addEventListener("click", () => void refreshTemplates());
+
+/* ---- recommended template preset ---- */
+function recommendedTemplate(key: TemplateKey, fant: boolean, files: string[]): string {
+  if (files.length === 0) return "";
+  if (key === "monster") {
+    if (fant && files.includes("monster2md-yamlStatblock-body.txt")) return "monster2md-yamlStatblock-body.txt";
+    return ["images-monster2md.txt", "monster2md.txt"].find((f) => files.includes(f)) ?? files[0];
+  }
+  // Prefer the richer image-embedding variant, then the plain one.
+  return [`images-${key}2md.txt`, `${key}2md.txt`].find((f) => files.includes(f)) ?? files[0];
+}
+async function applyRecommendedTemplates() {
+  if (!state.cliHome) return log("Pick a CLI home folder first.");
+  try {
+    const fant = (cfgEl("useFantasyStatblocks") as HTMLInputElement)?.checked ?? false;
+    let n = 0;
+    for (const key of TEMPLATE_KEYS_5E) {
+      const files = await listTemplates(state.cliHome, tplPredicate(key, fant));
+      const rec = recommendedTemplate(key, fant, files);
+      fillSelect(`tpl_${key}`, files, rec);
+      (cfgEl(`tpl_${key}`) as HTMLSelectElement).value = rec; // force-override prior choice
+      if (rec) n++;
+    }
+    captureConfigFields();
+    persist();
+    refreshConfigPreview();
+    log(n > 0 ? `Applied recommended templates to ${n} type(s).` : "No templates found — run Get templates on Setup first.");
+  } catch (e) { log(`Could not apply templates: ${e}`); }
+}
+$("#apply-recommended").addEventListener("click", () => void applyRecommendedTemplates());
+
+/* ---- template guide modal ---- */
+$("#template-guide-btn").addEventListener("click", () => (($("#guide-modal") as HTMLElement).hidden = false));
+$("#guide-modal-close").addEventListener("click", () => (($("#guide-modal") as HTMLElement).hidden = true));
+$("#guide-modal").addEventListener("click", (e) => {
+  if (e.target === $("#guide-modal")) ($("#guide-modal") as HTMLElement).hidden = true;
+});
+document.querySelectorAll<HTMLButtonElement>(".ext-link").forEach((b) =>
+  b.addEventListener("click", () => { const u = b.dataset.url; if (u) openUrl(u).catch((e) => log(`${e}`)); }),
+);
+
+/* ---- Template Creator ---- */
+const UNIVERSAL_VARS = ["resource.name", "resource.source", "resource.text", "resource.tags", "resource.aliases"];
+const SNIPPETS: Record<string, string> = {
+  frontmatter: "---\ncssclasses:\n- \ntags:\n{#for tag in resource.tags}- {tag}\n{/for}---\n",
+  if: "{#if resource.field}\n\n{/if}\n",
+  for: "{#for item in resource.list}\n- {item}\n{/for}\n",
+  each: "{#each resource.list}\n{it}\n{/each}\n",
+  image: "{#if resource.hasImages}{resource.showPortraitImage}{/if}\n{#if resource.hasMoreImages}\n{resource.showMoreImages}\n{/if}\n",
+};
+const creatorType = () => ($("#creator-type") as HTMLSelectElement).value as TemplateKey;
+
+function insertAtCursor(text: string) {
+  const ta = $("#creator-editor") as HTMLTextAreaElement;
+  const start = ta.selectionStart ?? ta.value.length;
+  const end = ta.selectionEnd ?? ta.value.length;
+  ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + text.length;
+  ta.focus();
+  renderCreatorPreview();
+}
+
+/** All templates for a type, regardless of the Fantasy Statblocks toggle —
+ *  the creator should surface every available variable, not just the selected variant's. */
+function typeTemplatesPredicate(key: TemplateKey): (name: string) => boolean {
+  const k = key.toLowerCase();
+  return (name) => {
+    const l = name.toLowerCase();
+    if (key === "class") return l.includes("class") && !l.includes("subclass");
+    if (key === "subclass") return l.includes("subclass");
+    return l.includes(k);
+  };
+}
+
+async function loadCreatorVars(type: TemplateKey) {
+  let texts: string[] = [];
+  if (state.cliHome) {
+    try {
+      const files = await listTemplates(state.cliHome, typeTemplatesPredicate(type));
+      texts = await Promise.all(files.map((f) => readTemplate(state.cliHome!, f).catch(() => "")));
+    } catch { /* fall through */ }
+  }
+  const joined = texts.join("\n").trim();
+  creatorTreeEmpty = joined.length === 0;
+  // Fall back to the universal fields if nothing is installed for this type.
+  creatorTree = buildVariableTree(creatorTreeEmpty ? [UNIVERSAL_VARS.map((v) => `{${v}}`).join(" ")] : texts);
+  renderCreatorTree();
+}
+
+function renderVarTree(nodes: VarNode[], filter: string, depth = 0): HTMLUListElement {
+  const ul = document.createElement("ul");
+  ul.className = "vt-list";
+  for (const n of nodes) {
+    const selfMatch = !filter || n.label.toLowerCase().includes(filter);
+    const hasKids = !!(n.children && n.children.length);
+    const childUl = hasKids ? renderVarTree(n.children!, filter, depth + 1) : null;
+    const childMatch = !!childUl && childUl.childElementCount > 0;
+    if (filter && !selfMatch && !childMatch) continue;
+
+    const li = document.createElement("li");
+    const row = document.createElement("div");
+    row.className = `vt-row vt-${n.kind}` + (n.kind === "list" ? " vt-list-node" : "");
+
+    if (hasKids) {
+      const caret = document.createElement("span");
+      caret.className = "vt-caret"; caret.textContent = "▸";
+      row.appendChild(caret);
+      // auto-open: top level always, and anything matching a filter
+      if (filter || depth === 0) li.classList.add("open");
+      row.addEventListener("click", () => li.classList.toggle("open"));
+    } else {
+      const dot = document.createElement("span"); dot.className = "vt-dot"; dot.textContent = "·";
+      row.appendChild(dot);
+    }
+
+    const lbl = document.createElement("span");
+    lbl.className = "vt-label"; lbl.textContent = n.label;
+    row.appendChild(lbl);
+
+    if (n.kind === "list") {
+      const badge = document.createElement("span"); badge.className = "vt-badge"; badge.textContent = "list";
+      row.appendChild(badge);
+    }
+    if (hasKids) {
+      const count = document.createElement("span");
+      count.className = "vt-count"; count.textContent = String(n.children!.length);
+      row.appendChild(count);
+    }
+
+    if (n.kind === "scalar" && n.insert) {
+      // leaf: clicking inserts the value
+      row.classList.add("vt-clickable");
+      row.title = n.hint ?? n.insert;
+      row.addEventListener("click", () => insertAtCursor(n.insert!));
+    } else if (n.insert) {
+      // object/list branch: row toggles expand; a small button inserts the scaffold/block
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "vt-loop";
+      btn.textContent = n.kind === "list" ? "+ loop" : "+ block";
+      btn.title = n.hint ?? "insert";
+      btn.addEventListener("click", (e) => { e.stopPropagation(); insertAtCursor(n.insert!); });
+      row.appendChild(btn);
+    }
+
+    li.appendChild(row);
+    if (childUl) li.appendChild(childUl);
+    ul.appendChild(li);
+  }
+  return ul;
+}
+function renderCreatorTree() {
+  const wrap = $("#creator-vars");
+  wrap.innerHTML = "";
+  if (creatorTreeEmpty) {
+    const note = document.createElement("div");
+    note.className = "palette-note";
+    note.textContent = "Install templates on Setup to see this type's full variable list. Showing universal fields.";
+    wrap.appendChild(note);
+  }
+  const filter = ($("#creator-search") as HTMLInputElement).value.trim().toLowerCase();
+  wrap.appendChild(renderVarTree(creatorTree, filter));
+}
+
+async function loadCreatorStartFrom(type: TemplateKey) {
+  const sel = $("#creator-startfrom") as HTMLSelectElement;
+  sel.innerHTML = '<option value="">— blank —</option>';
+  if (!state.cliHome) return;
+  try {
+    for (const f of await listTemplates(state.cliHome, typeTemplatesPredicate(type))) {
+      const o = document.createElement("option"); o.value = f; o.textContent = f; sel.appendChild(o);
+    }
+  } catch { /* ignore */ }
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function inlineMd(s: string) {
+  s = escapeHtml(s);
+  s = s.replace(/!\[\[([^\]]+)\]\]/g, (_m, n) => `<span class="md-img">🖼 ${n}</span>`);
+  s = s.replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, (_m, n, a) => `<span class="md-link">${a ? a.slice(1) : n}</span>`);
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  return s;
+}
+function mdToHtml(md: string) {
+  let body = md, fmHtml = "";
+  const fm = md.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (fm) {
+    body = md.slice(fm[0].length);
+    const lines = fm[1].split("\n").filter((l) => l.trim());
+    fmHtml = `<div class="md-fm">${lines.map((l) => `<div>${escapeHtml(l)}</div>`).join("")}</div>`;
+  }
+  const out: string[] = [];
+  let inList = false;
+  const closeList = () => { if (inList) { out.push("</ul>"); inList = false; } };
+  for (const raw of body.split("\n")) {
+    const line = raw.replace(/\s+$/, "");
+    if (/^#{1,6}\s/.test(line)) { closeList(); const lvl = line.match(/^#+/)![0].length; out.push(`<h${lvl}>${inlineMd(line.replace(/^#+\s/, ""))}</h${lvl}>`); }
+    else if (/^---+$/.test(line)) { closeList(); out.push("<hr/>"); }
+    else if (/^\s*-\s+/.test(line)) { if (!inList) { out.push("<ul>"); inList = true; } out.push(`<li>${inlineMd(line.replace(/^\s*-\s+/, ""))}</li>`); }
+    else if (line.trim() === "") { closeList(); }
+    else { closeList(); out.push(`<p>${inlineMd(line)}</p>`); }
+  }
+  closeList();
+  return fmHtml + out.join("\n");
+}
+function renderCreatorPreview() {
+  const md = renderTemplatePreview(($("#creator-editor") as HTMLTextAreaElement).value, buildSample());
+  $("#creator-preview").innerHTML = mdToHtml(md);
+}
+
+async function onCreatorType() {
+  const type = creatorType();
+  await Promise.all([loadCreatorVars(type), loadCreatorStartFrom(type)]);
+  renderCreatorPreview();
+}
+function openCreator() {
+  const typeSel = $("#creator-type") as HTMLSelectElement;
+  if (!typeSel.options.length) {
+    for (const k of TEMPLATE_KEYS_5E) { const o = document.createElement("option"); o.value = k; o.textContent = k; typeSel.appendChild(o); }
+  }
+  ($("#creator-modal") as HTMLElement).hidden = false;
+  void onCreatorType();
+}
+async function saveCreatorTemplate() {
+  if (!state.cliHome) return log("Pick a CLI home folder first.");
+  let name = ($("#creator-filename") as HTMLInputElement).value.trim();
+  if (!name) return log("Enter a file name for the template.");
+  if (!/\.txt$/i.test(name)) name += ".txt";
+  try {
+    await saveTemplate(state.cliHome, name, ($("#creator-editor") as HTMLTextAreaElement).value);
+    log(`Saved template: ${name}`);
+    await refreshTemplates();   // surface it in the config dropdowns
+    await loadCreatorStartFrom(creatorType());
+  } catch (e) { log(`Could not save template: ${e}`); }
+}
+
+$("#open-creator").addEventListener("click", openCreator);
+$("#creator-close").addEventListener("click", () => (($("#creator-modal") as HTMLElement).hidden = true));
+$("#creator-modal").addEventListener("click", (e) => { if (e.target === $("#creator-modal")) ($("#creator-modal") as HTMLElement).hidden = true; });
+$("#creator-type").addEventListener("change", () => void onCreatorType());
+$("#creator-startfrom").addEventListener("change", async () => {
+  const f = ($("#creator-startfrom") as HTMLSelectElement).value;
+  if (f && state.cliHome) {
+    try { ($("#creator-editor") as HTMLTextAreaElement).value = await readTemplate(state.cliHome, f); }
+    catch (e) { log(`${e}`); }
+  }
+  renderCreatorPreview();
+});
+$("#creator-editor").addEventListener("input", renderCreatorPreview);
+$("#creator-search").addEventListener("input", renderCreatorTree);
+document.querySelectorAll<HTMLButtonElement>(".snip").forEach((b) =>
+  b.addEventListener("click", () => insertAtCursor(SNIPPETS[b.dataset.snip ?? ""] ?? "")),
+);
+$("#creator-save").addEventListener("click", () => void saveCreatorTemplate());
 
 /* ---- index picker ---- */
 $("#generate-index").addEventListener("click", async () => {
@@ -293,6 +574,8 @@ function appendKey(field: "include" | "exclude", key: string) {
 /* ---- source picker modal ---- */
 let modalTarget: "adventure" | "book" | "reference" = "adventure";
 let modalEntries: SourceEntry[] = [];
+let pickerSelected = new Set<string>(); // live checkbox state (survives search filtering)
+let pickerInitial = new Set<string>();  // snapshot at open — drives picked-to-top ordering
 
 async function getSources(kind: "book" | "adventure"): Promise<SourceEntry[]> {
   if (sourceCache[kind]) return sourceCache[kind]!;
@@ -319,6 +602,8 @@ async function openSourcePicker(target: "adventure" | "book" | "reference") {
   }
   $("#source-modal-title").textContent =
     `Pick ${target === "reference" ? "reference sources" : target === "book" ? "books" : "adventures"}`;
+  pickerInitial = currentSelected();          // ordering snapshot (stable for this session)
+  pickerSelected = new Set(pickerInitial);    // live edits
   ($("#source-search") as HTMLInputElement).value = "";
   renderSourceList("");
   ($("#source-modal") as HTMLElement).hidden = false;
@@ -329,18 +614,25 @@ function currentSelected(): Set<string> {
 }
 
 function renderSourceList(query: string) {
-  const selected = currentSelected();
   const q = query.trim().toLowerCase();
-  const list = q
+  const list = (q
     ? modalEntries.filter((e) => e.name.toLowerCase().includes(q) || e.id.toLowerCase().includes(q))
-    : modalEntries;
+    : modalEntries.slice()
+  ).sort((a, b) =>
+    // already-picked (at open) float to the top; then alphabetical
+    Number(pickerInitial.has(b.id)) - Number(pickerInitial.has(a.id)) || a.name.localeCompare(b.name),
+  );
   const box = $("#source-list");
   box.innerHTML = "";
   for (const e of list) {
     const row = document.createElement("label");
     row.className = "source-row";
+    if (pickerInitial.has(e.id)) row.classList.add("picked");
     const cb = document.createElement("input");
-    cb.type = "checkbox"; cb.value = e.id; cb.checked = selected.has(e.id);
+    cb.type = "checkbox"; cb.value = e.id; cb.checked = pickerSelected.has(e.id);
+    cb.addEventListener("change", () => {
+      if (cb.checked) pickerSelected.add(e.id); else pickerSelected.delete(e.id);
+    });
     const text = document.createElement("span");
     text.innerHTML = `${e.name} <em>${e.id}</em>`;
     row.append(cb, text);
@@ -358,14 +650,19 @@ $("#source-modal").addEventListener("click", (e) => {
   if (e.target === $("#source-modal")) ($("#source-modal") as HTMLElement).hidden = true;
 });
 $("#source-add").addEventListener("click", () => {
-  const picked = Array.from($("#source-list").querySelectorAll<HTMLInputElement>("input:checked")).map((c) => c.value);
   const input = cfgEl(modalTarget) as HTMLInputElement;
-  input.value = mergeCodes(input.value, picked);
+  const known = new Set(modalEntries.map((e) => e.id));
+  // Keep originals that are either manual (unknown to the picker) or still selected,
+  // then append any newly-picked codes. Unticking a known source now removes it.
+  const kept = toList(input.value).filter((c) => !known.has(c) || pickerSelected.has(c));
+  for (const id of pickerSelected) if (!kept.includes(id)) kept.push(id);
+  const before = toList(input.value).length;
+  input.value = kept.join(", ");
   captureConfigFields();
   persist();
   refreshConfigPreview();
   ($("#source-modal") as HTMLElement).hidden = true;
-  log(`${modalTarget}: added ${picked.length} source(s)`);
+  log(`${modalTarget}: ${kept.length} source(s) selected (was ${before})`);
 });
 
 /* ---- homebrew file picker ---- */
@@ -623,6 +920,68 @@ $("#config-select").addEventListener("change", () => {
 
 const currentConfigName = () => ($("#run-config") as HTMLSelectElement).value || state.configName;
 
+/** Build the "after it finishes" instructions from the config that will actually run. */
+async function renderRunGuidance() {
+  const box = $("#run-guidance");
+  let mt = (cfgEl("tpl_monster") as HTMLSelectElement)?.value ?? "";
+  let dice = (cfgEl("useDiceRoller") as HTMLInputElement)?.checked ?? false;
+  const name = ($("#run-config") as HTMLSelectElement).value;
+  if (name && state.cliHome) {
+    try {
+      const fields = configToFields(await readTextFile(joinHome(state.cliHome, name)));
+      mt = String(fields.tpl_monster ?? mt);
+      dice = !!fields.useDiceRoller;
+    } catch { /* fall back to the form values */ }
+  }
+  const g = conversionGuidance({ monsterTemplate: mt, diceRoller: dice });
+
+  const statusLine = g.usingStatblocks
+    ? `<div class="g-status ok">✓ Monsters will be <strong>Fantasy Statblocks</strong> — install the plugin below.</div>`
+    : mt
+      ? `<div class="g-status warn">⚠ Monsters will be <strong>plain Markdown</strong>, not Fantasy Statblocks, with this config. Change the monster template on Configure if you want statblocks.</div>`
+      : "";
+
+  const homeLabel = state.cliHome ?? "your CLI home";
+  const assetPath = (rel: string) => joinHome(homeLabel, ...rel.split("/").filter(Boolean));
+
+  const plugin = (p: typeof g.plugins[number]) => `
+    <li class="g-plugin">
+      <div class="g-plugin-head">
+        <span class="need ${p.need}">${p.need}</span>
+        <button class="btn link sm ext-link g-plugin-name" data-url="${pluginUrl(p.id)}">${p.name} ↗</button>
+      </div>
+      <div class="g-plugin-note">${p.note}</div>
+      ${p.setup ? `<ol class="g-setup">${p.setup.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ol>` : ""}
+    </li>`;
+
+  const asset = (a: typeof g.assets[number]) => `
+    <li class="g-asset">
+      <strong>${a.name}</strong> — ${a.note}<br>
+      <span class="g-from">from <code>${escapeHtml(assetPath(a.from))}</code></span><br>
+      <span class="g-to">→ ${escapeHtml(a.to)}</span>
+    </li>`;
+
+  box.innerHTML =
+    statusLine +
+    `<div class="g-sub">1 · Copy the notes in</div>` +
+    `<ol class="g-steps">
+       <li>Click <strong>Open output folder</strong>, then copy the generated folder into the <em>top level</em> of your Obsidian vault. Treat these as read-only — re-run to update.</li>
+     </ol>` +
+    `<div class="g-sub">2 · Install these plugins <span class="g-subhint">(Settings → Community Plugins → Browse, or click a name)</span></div>` +
+    `<ul class="g-plugins">${g.plugins.map(plugin).join("")}</ul>` +
+    `<div class="g-sub">3 · Copy these from the examples folder you downloaded</div>` +
+    `<ul class="g-assets">${g.assets.map(asset).join("")}</ul>` +
+    `<div class="g-sub">4 · Finish up</div>` +
+    `<div class="g-status restart">↻ Once everything's installed and copied, <strong>restart Obsidian</strong> so it loads the plugins, CSS and new notes together.</div>` +
+    `<div class="g-links">
+       <button class="btn ghost sm ext-link" data-url="https://obsidianttrpgtutorials.com/Obsidian+TTRPG+Tutorials/Plugin+Tutorials/Community+Plugins/TTRPG-Convert-CLI/TTRPG-Convert-CLI+5e">Full vault setup guide ↗</button>
+       <button class="btn ghost sm ext-link" data-url="https://github.com/ebullient/ttrpg-convert-cli/blob/main/README.md">Converter docs ↗</button>
+     </div>`;
+  box.querySelectorAll<HTMLButtonElement>(".ext-link").forEach((b) =>
+    b.addEventListener("click", () => { const u = b.dataset.url; if (u) openUrl(u).catch((e) => log(`${e}`)); }),
+  );
+}
+
 function runArgs(): string[] {
   const args: string[] = [];
   if (($("#opt-log") as HTMLInputElement).checked) args.push("--log");
@@ -644,6 +1003,7 @@ function refreshCommandPreview() {
     state.outputFolder = ($("#output-folder") as HTMLInputElement).value;
     persist();
     refreshCommandPreview();
+    if (id === "#run-config") void renderRunGuidance();
   }),
 );
 $("#data-folder").addEventListener("input", (e) => {
@@ -662,13 +1022,23 @@ $("#run-cli").addEventListener("click", async () => {
   try {
     const code = await runConverter(state.exePath, args, state.cliHome, log);
     log(code === 0 ? "Conversion complete ✓ — open the output folder to copy into your vault." : `Converter exited with code ${code}`);
-  } catch (e) { log(`Run failed: ${e}`); }
+  } catch (e) {
+    const msg = String(e);
+    log(`Run failed: ${msg}`);
+    if (/bad cpu type|os error 86|exec format error/i.test(msg)) {
+      log(
+        "↳ That's an architecture mismatch — the converter binary doesn't match your CPU. " +
+        "Delete the downloaded ttrpg-convert-cli-* folder in your CLI home and click Install again to fetch the correct build for your machine " +
+        "(Apple Silicon Macs need the osx-aarch_64 build). As a stop-gap on a Mac you can install Rosetta with: softwareupdate --install-rosetta --agree-to-license",
+      );
+    }
+  }
 });
 
 $("#open-output").addEventListener("click", () => {
   if (!state.cliHome) return;
   const out = ($("#output-folder") as HTMLInputElement).value.trim() || "generated";
-  openUrl(joinHome(state.cliHome, out)).catch((e) => log(`Could not open folder: ${e}`));
+  openPath(joinHome(state.cliHome, out)).catch((e) => log(`Could not open folder: ${e}`));
 });
 
 /* ---- startup ---- */
