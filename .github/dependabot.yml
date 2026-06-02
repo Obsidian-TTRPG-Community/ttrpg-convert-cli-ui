@@ -1,0 +1,48 @@
+version: 2
+
+# Weekly, grouped updates. The `ignore` entries are dependencies pulled in
+# transitively (by Tauri's GTK/WebKit bindings, and by Vite's bundler) that
+# can't be upgraded on their own — Dependabot just errors trying, which is what
+# produced the run failures. They're build/runtime plumbing, not anything that
+# ships to users; bump them via their parent crate/package instead.
+updates:
+  # Frontend dev/build tooling (nothing here is bundled into the app).
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      frontend:
+        patterns: ["*"]
+    ignore:
+      # Transitive under Vite/Vitest; updated by bumping Vite, not directly.
+      - dependency-name: "esbuild"
+
+  # Tauri / Rust backend.
+  - package-ecosystem: cargo
+    directory: "/src-tauri"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      rust:
+        patterns: ["*"]
+    ignore:
+      # System bindings pulled in transitively by Tauri / WebKitGTK — these
+      # cannot be bumped independently of their parent crates.
+      - dependency-name: "glib"
+      - dependency-name: "glib-sys"
+      - dependency-name: "gio"
+      - dependency-name: "gio-sys"
+      - dependency-name: "gtk"
+      - dependency-name: "gdk"
+      - dependency-name: "gdk-sys"
+      - dependency-name: "gobject-sys"
+
+  # Keep the workflow's actions current (also clears the Node 20 deprecation
+  # warnings by moving checkout/setup-node forward when new majors land).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
