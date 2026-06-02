@@ -42,6 +42,13 @@ guided **post-conversion checklist**, plus an important Apple Silicon fix.
   and never blocks startup; prereleases don't trigger it.
 
 ### Fixes
+- **Homebrew filenames containing commas no longer break conversion.** The
+  homebrew list was comma-delimited internally, so a filename with a comma in it
+  (common for third-party titles, e.g. *"Flee, Mortals!.json"*) was split into a
+  broken path the converter couldn't open — it failed with a NullPointerException
+  before writing any output. Homebrew is now newline-delimited (one path per
+  line), and existing configs broken by the old behaviour are repaired
+  automatically when loaded in Configure.
 - **Apple Silicon Macs now download the correct converter.** The arm64 build is
   published as `osx-aarch_64` (underscore), which the asset matcher didn't
   recognise — so Apple Silicon machines were getting the Intel binary and

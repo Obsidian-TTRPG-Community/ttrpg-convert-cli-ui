@@ -686,9 +686,9 @@ $("#pick-homebrew").addEventListener("click", async () => {
     entry = `homebrew/${parts[parts.length - 2] ?? ""}/${parts[parts.length - 1]}`;
   }
   const input = cfgEl("homebrew") as HTMLInputElement;
-  const have = input.value.split(",").map((s) => s.trim()).filter(Boolean);
+  const have = input.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   if (!have.includes(entry)) have.push(entry);
-  input.value = have.join(", ");
+  input.value = have.join("\n");
   captureConfigFields();
   persist();
   refreshConfigPreview();

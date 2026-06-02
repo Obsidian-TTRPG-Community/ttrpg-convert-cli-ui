@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildConfig, buildConfigJson, configToFields, toList, type ConfigInput } from "../config";
+import { buildConfig, buildConfigJson, configToFields, toList, toLines, repairHomebrew, type ConfigInput } from "../config";
 
 function base(overrides: Partial<ConfigInput> = {}): ConfigInput {
   return {
@@ -19,6 +19,57 @@ function base(overrides: Partial<ConfigInput> = {}): ConfigInput {
 describe("toList", () => {
   it("splits and trims", () => expect(toList("LMoP, PotA ,WBtW")).toEqual(["LMoP", "PotA", "WBtW"]));
   it("empty -> []", () => expect(toList("  ")).toEqual([]));
+});
+
+describe("homebrew paths with commas (regression)", () => {
+  it("toLines keeps comma-containing filenames intact", () => {
+    expect(toLines("homebrew/collection/X; Saddlebag, Book 1.json\nhomebrew/creature/Y; Flee, Mortals!.json"))
+      .toEqual([
+        "homebrew/collection/X; Saddlebag, Book 1.json",
+        "homebrew/creature/Y; Flee, Mortals!.json",
+      ]);
+  });
+
+  it("buildConfig preserves comma-containing homebrew filenames", () => {
+    const c = buildConfig(base({
+      sources: {
+        adventure: "", book: "", reference: "",
+        homebrew: "homebrew/collection/X; Saddlebag, Book 1.json\nhomebrew/creature/Y; Flee, Mortals!.json",
+      },
+    }));
+    expect((c.sources as any).homebrew).toEqual([
+      "homebrew/collection/X; Saddlebag, Book 1.json",
+      "homebrew/creature/Y; Flee, Mortals!.json",
+    ]);
+  });
+
+  it("repairHomebrew leaves a correct list untouched", () => {
+    const ok = ["homebrew/a/x.json", "homebrew/b/y.json"];
+    expect(repairHomebrew(ok)).toEqual(ok);
+  });
+
+  it("repairHomebrew stitches a legacy comma-shattered list back together", () => {
+    // What an older build wrote for "…Saddlebag, Book 1.json" and "Flee, Mortals!.json".
+    const shattered = [
+      "homebrew/collection/Griffin Macaulay; The Griffon's Saddlebag",
+      "Book 1 - 2024.json",
+      "homebrew/creature/MCDM Productions; Flee",
+      "Mortals!.json",
+      "homebrew/book/clean.json",
+    ];
+    expect(repairHomebrew(shattered)).toEqual([
+      "homebrew/collection/Griffin Macaulay; The Griffon's Saddlebag, Book 1 - 2024.json",
+      "homebrew/creature/MCDM Productions; Flee, Mortals!.json",
+      "homebrew/book/clean.json",
+    ]);
+  });
+
+  it("configToFields repairs a shattered homebrew array on load", () => {
+    const f = configToFields(JSON.stringify({
+      sources: { homebrew: ["homebrew/x; A", "B.json", "homebrew/y/ok.json"] },
+    }));
+    expect(f.homebrew).toBe("homebrew/x; A, B.json\nhomebrew/y/ok.json");
+  });
 });
 
 describe("sources", () => {

@@ -58,6 +58,38 @@ export function toList(csv: string): string[] {
   return csv.split(",").map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
+/** Split on newlines: "a\nb" -> ["a","b"]; "" -> []. Used for values that may
+ *  themselves contain commas (e.g. homebrew file paths). */
+export function toLines(text: string): string[] {
+  if (!text) return [];
+  return text.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+/**
+ * Reconstruct homebrew paths that an older build shattered on commas. Earlier
+ * versions stored the homebrew list comma-joined, so any filename containing a
+ * comma (e.g. "Flee, Mortals!.json") was split into a dead, extension-less path
+ * plus an orphan fragment — which made the converter throw a NullPointerException
+ * trying to read a file that didn't exist. We stitch any entry that doesn't end
+ * in ".json" back together with the entries that follow it (re-inserting ", ")
+ * until it does. A correctly-stored list passes through untouched.
+ */
+export function repairHomebrew(entries: string[]): string[] {
+  const out: string[] = [];
+  let buf = "";
+  for (const raw of entries) {
+    const part = (raw ?? "").trim();
+    if (!part) continue;
+    buf = buf ? `${buf}, ${part}` : part;
+    if (/\.json$/i.test(buf)) {
+      out.push(buf);
+      buf = "";
+    }
+  }
+  if (buf) out.push(buf); // trailing fragment with no .json — keep verbatim
+  return out;
+}
+
 /** Build the ordered, serialisable config object. */
 export function buildConfig(input: ConfigInput): Record<string, unknown> {
   const cfg: Record<string, unknown> = {};
@@ -66,7 +98,7 @@ export function buildConfig(input: ConfigInput): Record<string, unknown> {
     adventure: toList(input.sources.adventure),
     book: toList(input.sources.book),
     reference: toList(input.sources.reference),
-    homebrew: toList(input.sources.homebrew),
+    homebrew: toLines(input.sources.homebrew),
   };
   if (input.sources.defaultSource && Object.keys(input.sources.defaultSource).length > 0) {
     sources.defaultSource = input.sources.defaultSource;
@@ -134,7 +166,7 @@ export function configToFields(text: string): Record<string, string | boolean> {
   f.adventure = list(sources.adventure);
   f.book = list(sources.book);
   f.reference = list(sources.reference);
-  f.homebrew = list(sources.homebrew);
+  f.homebrew = repairHomebrew(Array.isArray(sources.homebrew) ? (sources.homebrew as string[]) : []).join("\n");
   f.defaultSource = sources.defaultSource && typeof sources.defaultSource === "object"
     ? Object.entries(sources.defaultSource).map(([k, v]) => `${k}=${v}`).join(", ")
     : "";
