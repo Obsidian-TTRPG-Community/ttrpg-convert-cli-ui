@@ -4,6 +4,18 @@ All notable changes are recorded here. The release workflow pulls the section
 matching a tag (e.g. `v2.0.0`) into the GitHub release notes, ahead of the
 auto-generated "What's Changed" list.
 
+## v2.2.0 — Homebrew source browser
+
+- The one-file-at-a-time homebrew picker is replaced by a **categorised browser**
+  that works like the official source picker. It scans your homebrew folder and
+  groups everything by type — Book, Adventure, Collection, Creature, Spell, … —
+  taken from the subfolders, with each entry labelled by title and author from
+  the filename. You can search by title, author, or category and multi-select
+  with checkboxes; selected items float to the top, unticking removes them, and
+  your picks are written as file paths (newline-delimited, so comma-containing
+  titles stay intact). No file contents are read, so it stays fast even with a
+  large homebrew library.
+
 ## v2.1.0 — Template Creator, guided setup & Apple Silicon fix
 
 Everything since 2.0.1. Headline additions are the **Template Creator** and a

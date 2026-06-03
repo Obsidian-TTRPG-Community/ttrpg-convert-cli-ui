@@ -237,6 +237,12 @@ export function listConfigs(home: string): Promise<string[]> {
   return invoke<string[]>("list_files", { dir: home, ext: ".json" });
 }
 
+/** List homebrew `.json` files under <home>/homebrew, relative to that folder
+ *  (e.g. "book/Author; Title.json"). [] when the folder isn't present yet. */
+export function listHomebrew(home: string): Promise<string[]> {
+  return invoke<string[]>("list_files_recursive", { dir: joinHome(home, "homebrew"), ext: ".json" });
+}
+
 /** Native folder picker. */
 export async function pickFolder(title = "Select a folder"): Promise<string | null> {
   const result = await openDialog({ directory: true, multiple: false, title });

@@ -131,7 +131,7 @@
             <label>Homebrew <span class="hint">semicolons preserved</span></label>
             <div class="row pick-row">
               <textarea data-cfg="homebrew" rows="3" placeholder="homebrew/Author/file.json (one per line)"></textarea>
-              <button class="btn ghost sm" id="pick-homebrew">Pick file…</button>
+              <button class="btn ghost sm" id="browse-homebrew">Browse…</button>
             </div>
 
             <details class="advanced">
@@ -373,6 +373,23 @@ tags:
         <div class="modal-foot">
           <span id="source-count" class="hint"></span>
           <button id="source-add" class="btn">Add selected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- homebrew browser modal -->
+    <div id="homebrew-modal" class="modal" hidden>
+      <div class="modal-box">
+        <div class="modal-head">
+          <span>Browse homebrew</span>
+          <button id="homebrew-modal-close" class="btn ghost sm">✕</button>
+        </div>
+        <input id="homebrew-search" type="text" placeholder="search by title, author or category…" />
+        <div id="homebrew-cats" class="hb-cats"></div>
+        <div id="homebrew-list" class="source-list"></div>
+        <div class="modal-foot">
+          <span id="homebrew-count" class="hint"></span>
+          <button id="homebrew-add" class="btn">Add selected</button>
         </div>
       </div>
     </div>

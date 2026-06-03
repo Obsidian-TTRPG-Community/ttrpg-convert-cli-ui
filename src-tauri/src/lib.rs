@@ -222,6 +222,48 @@ fn path_exists(path: String) -> bool {
     Path::new(&path).exists()
 }
 
+/// Recursively list files under `dir` ending with `ext`, returning paths
+/// RELATIVE to `dir` with forward slashes (e.g. "book/Author; Title.json").
+/// Skips hidden and underscore-prefixed folders (.git, _generated, _img …).
+/// Returns [] if the directory does not exist.
+#[tauri::command]
+fn list_files_recursive(dir: String, ext: String) -> Result<Vec<String>, String> {
+    let root = Path::new(&dir);
+    if !root.is_dir() {
+        return Ok(vec![]);
+    }
+    let ext_l = ext.to_lowercase();
+    let mut out: Vec<String> = vec![];
+    let mut stack: Vec<std::path::PathBuf> = vec![root.to_path_buf()];
+    while let Some(cur) = stack.pop() {
+        let entries = match fs::read_dir(&cur) {
+            Ok(e) => e,
+            Err(_) => continue, // unreadable dir — skip rather than fail the whole walk
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+            if path.is_dir() {
+                if name.starts_with('.') || name.starts_with('_') {
+                    continue;
+                }
+                stack.push(path);
+            } else if path.is_file()
+                && (ext_l.is_empty() || name.to_lowercase().ends_with(&ext_l))
+            {
+                if let Ok(rel) = path.strip_prefix(root) {
+                    out.push(rel.to_string_lossy().replace('\\', "/"));
+                }
+            }
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
 /// Open a folder (or file) in the OS file manager. Runs in the Rust backend, so
 /// it bypasses the shell plugin's URL-only `open` scope that rejects file paths.
 #[tauri::command]
@@ -331,6 +373,7 @@ pub fn run() {
             write_text_file,
             read_text_file,
             list_files,
+            list_files_recursive,
             path_exists,
             open_path,
             find_converter

@@ -8,10 +8,11 @@ import { buildConfigJson, configToFields, toList, TEMPLATE_KEYS_5E, type ConfigI
 import {
   detectHost, pathExists, findConverter, installCli, installTemplates, runConverter, gitClone, gitPull,
   writeConfigFile, readTextFile, listTemplates, listConfigs, loadIndexKeys, loadSources,
-  pickHomebrewFile, pickFolder, joinHome, TEMPLATES_REL, saveTemplate, readTemplate, openPath,
-  checkAppUpdate, type Progress,
+  pickFolder, joinHome, TEMPLATES_REL, saveTemplate, readTemplate, openPath,
+  checkAppUpdate, listHomebrew, type Progress,
 } from "./lib/cli";
 import { APP_RELEASES_PAGE, type AppUpdate } from "./lib/update-check";
+import { parseHomebrew, groupHomebrew, matchesQuery, type HomebrewEntry } from "./lib/homebrew";
 import { filterKeys } from "./lib/index";
 import { type SourceEntry } from "./lib/sources";
 import { renderTemplatePreview, buildSample, buildVariableTree, type VarNode } from "./lib/template-creator";
@@ -580,6 +581,10 @@ let modalTarget: "adventure" | "book" | "reference" = "adventure";
 let modalEntries: SourceEntry[] = [];
 let pickerSelected = new Set<string>(); // live checkbox state (survives search filtering)
 let pickerInitial = new Set<string>();  // snapshot at open — drives picked-to-top ordering
+let homebrewEntries: HomebrewEntry[] = [];
+let hbSelected = new Set<string>();      // live: selected homebrew paths
+let hbInitial = new Set<string>();       // snapshot at open
+let hbCatFilter = new Set<string>();     // active category chips (empty = all)
 
 async function getSources(kind: "book" | "adventure"): Promise<SourceEntry[]> {
   if (sourceCache[kind]) return sourceCache[kind]!;
@@ -669,30 +674,131 @@ $("#source-add").addEventListener("click", () => {
   log(`${modalTarget}: ${kept.length} source(s) selected (was ${before})`);
 });
 
-/* ---- homebrew file picker ---- */
-$("#pick-homebrew").addEventListener("click", async () => {
+/* ---- homebrew browser (categorised, mirrors the source picker) ---- */
+function homebrewLines(): string[] {
+  return ((cfgEl("homebrew") as HTMLTextAreaElement).value)
+    .split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+}
+
+async function openHomebrewBrowser() {
   if (!state.cliHome) return log("Pick a CLI home folder first.");
-  const file = await pickHomebrewFile(state.cliHome);
-  if (!file) return;
-  // Prefer a path relative to home (forward slashes per the CLI's Windows note);
-  // fall back to <parent>/<file> like the original tool.
-  const fwd = file.replace(/\\/g, "/");
-  const homeFwd = state.cliHome.replace(/\\/g, "/").replace(/\/+$/, "");
-  let entry: string;
-  if (fwd.toLowerCase().startsWith(homeFwd.toLowerCase() + "/")) {
-    entry = fwd.slice(homeFwd.length + 1);
-  } else {
-    const parts = fwd.split("/");
-    entry = `homebrew/${parts[parts.length - 2] ?? ""}/${parts[parts.length - 1]}`;
+  let rel: string[] = [];
+  try {
+    rel = await listHomebrew(state.cliHome);
+  } catch (e) {
+    return log(`Couldn't read the homebrew folder: ${e}`);
   }
-  const input = cfgEl("homebrew") as HTMLInputElement;
-  const have = input.value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-  if (!have.includes(entry)) have.push(entry);
-  input.value = have.join("\n");
+  if (rel.length === 0) {
+    return log("No homebrew files found — use “Get homebrew” on the Setup tab first.");
+  }
+  homebrewEntries = parseHomebrew(rel);
+  hbInitial = new Set(homebrewLines());
+  hbSelected = new Set(hbInitial);
+  hbCatFilter = new Set();
+  ($("#homebrew-search") as HTMLInputElement).value = "";
+  renderHomebrewCats();
+  renderHomebrewList("");
+  ($("#homebrew-modal") as HTMLElement).hidden = false;
+}
+
+function homebrewQuery(): string {
+  return ($("#homebrew-search") as HTMLInputElement).value;
+}
+
+/** Build the category filter chips (with counts) above the list. */
+function renderHomebrewCats() {
+  const groups = groupHomebrew(homebrewEntries);
+  const bar = $("#homebrew-cats");
+  bar.innerHTML = "";
+
+  const chip = (label: string, active: boolean, onClick: () => void) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "hb-chip" + (active ? " active" : "");
+    b.textContent = label;
+    b.addEventListener("click", onClick);
+    bar.appendChild(b);
+  };
+
+  chip(`All (${homebrewEntries.length})`, hbCatFilter.size === 0, () => {
+    hbCatFilter.clear();
+    renderHomebrewCats();
+    renderHomebrewList(homebrewQuery());
+  });
+  for (const g of groups) {
+    chip(`${g.category} (${g.entries.length})`, hbCatFilter.has(g.category), () => {
+      if (hbCatFilter.has(g.category)) hbCatFilter.delete(g.category);
+      else hbCatFilter.add(g.category);
+      renderHomebrewCats();
+      renderHomebrewList(homebrewQuery());
+    });
+  }
+}
+
+function renderHomebrewList(query: string) {
+  const matching = homebrewEntries.filter(
+    (e) => matchesQuery(e, query) && (hbCatFilter.size === 0 || hbCatFilter.has(e.category)),
+  );
+  // Picked-at-open entries float to the top, preserving category grouping below.
+  const picked = matching.filter((e) => hbInitial.has(e.path)).sort((a, b) => a.title.localeCompare(b.title));
+  const rest = matching.filter((e) => !hbInitial.has(e.path));
+  const box = $("#homebrew-list");
+  box.innerHTML = "";
+
+  const addRow = (e: HomebrewEntry) => {
+    const row = document.createElement("label");
+    row.className = "source-row";
+    if (hbInitial.has(e.path)) row.classList.add("picked");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.value = e.path; cb.checked = hbSelected.has(e.path);
+    cb.addEventListener("change", () => {
+      if (cb.checked) hbSelected.add(e.path); else hbSelected.delete(e.path);
+    });
+    const text = document.createElement("span");
+    text.innerHTML = e.author
+      ? `${escapeHtml(e.title)} <em>${escapeHtml(e.author)}</em>`
+      : escapeHtml(e.title);
+    row.append(cb, text);
+    box.appendChild(row);
+  };
+
+  if (picked.length) {
+    const head = document.createElement("div");
+    head.className = "hb-cat";
+    head.textContent = "Selected";
+    box.appendChild(head);
+    picked.forEach(addRow);
+  }
+  for (const group of groupHomebrew(rest)) {
+    const head = document.createElement("div");
+    head.className = "hb-cat";
+    head.textContent = `${group.category} (${group.entries.length})`;
+    box.appendChild(head);
+    group.entries.forEach(addRow);
+  }
+  $("#homebrew-count").textContent = `${matching.length} shown · ${hbSelected.size} selected`;
+}
+
+$("#browse-homebrew").addEventListener("click", () => void openHomebrewBrowser());
+$("#homebrew-search").addEventListener("input", (e) => renderHomebrewList((e.target as HTMLInputElement).value));
+$("#homebrew-modal-close").addEventListener("click", () => (($("#homebrew-modal") as HTMLElement).hidden = true));
+$("#homebrew-modal").addEventListener("click", (e) => {
+  if (e.target === $("#homebrew-modal")) ($("#homebrew-modal") as HTMLElement).hidden = true;
+});
+$("#homebrew-add").addEventListener("click", () => {
+  const input = cfgEl("homebrew") as HTMLTextAreaElement;
+  const known = new Set(homebrewEntries.map((e) => e.path));
+  // Keep lines that are manual (unknown to the browser) or still selected;
+  // append newly-selected paths. Unticking a known entry removes it.
+  const kept = homebrewLines().filter((p) => !known.has(p) || hbSelected.has(p));
+  for (const p of hbSelected) if (!kept.includes(p)) kept.push(p);
+  const before = homebrewLines().length;
+  input.value = kept.join("\n");
   captureConfigFields();
   persist();
   refreshConfigPreview();
-  log(`homebrew: ${entry}`);
+  ($("#homebrew-modal") as HTMLElement).hidden = true;
+  log(`homebrew: ${kept.length} file(s) selected (was ${before})`);
 });
 
 $("#open-sourcemap-cfg").addEventListener("click", () =>
@@ -768,7 +874,7 @@ function updateReadiness() {
     b.disabled = !dataReady;
     b.title = dataReady ? "" : "Clone the 5etools source data first (Setup tab)";
   });
-  const hb = $("#pick-homebrew") as HTMLButtonElement;
+  const hb = $("#browse-homebrew") as HTMLButtonElement;
   hb.disabled = !present.homebrew;
   hb.title = present.homebrew ? "" : "Get homebrew first (Setup tab)";
   const gi = $("#generate-index") as HTMLButtonElement;

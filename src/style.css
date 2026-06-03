@@ -411,6 +411,30 @@ textarea:focus { border-color: var(--amber); }
   font-family: var(--mono); font-style: normal; font-size: 11px;
   color: var(--amber-soft); margin-left: 6px;
 }
+/* Category headers in the homebrew browser */
+.hb-cat {
+  position: sticky; top: 0; z-index: 1;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.6px; text-transform: uppercase;
+  color: var(--ink-dim); background: var(--inset);
+  padding: 8px 8px 4px; margin-top: 2px;
+  border-bottom: 1px solid var(--line);
+}
+.hb-cat:first-child { margin-top: 0; }
+/* Category filter chips above the homebrew list */
+.hb-cats {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px;
+  flex-shrink: 0; max-height: 92px; overflow-y: auto;
+}
+.hb-chip {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2px;
+  border: 1px solid var(--line); background: var(--inset); color: var(--ink-dim);
+  padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.hb-chip:hover { color: var(--ink); border-color: var(--amber-soft); }
+.hb-chip.active {
+  background: var(--amber); border-color: var(--amber); color: #1a1d21;
+}
 .modal-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
 
 /* ---- disabled actions (readiness gating) ---- */
