@@ -1,0 +1,62 @@
+---
+obsidianUIMode: preview
+cssclasses:
+- json5e-monster
+statblock: inline
+statblock-link: "#^statblock"
+{#if resource.tags }
+tags:
+{#for tag in resource.tags}
+- {tag}
+{/for}{/if}
+aliases:
+{#each resource.aliases}
+- {it}
+{/each}
+name: "{resource.name}"
+source: "{resource.source}"
+type: "{resource.fullType}"
+size: "{resource.size}"
+alignment: "{resource.alignment}"
+cr: "{resource.cr}"
+{#if resource.ac }ac: {resource.ac}
+{/if}{#if resource.hp }hp: {resource.hp}
+{/if}{#if resource.hitDice }hitDice: "{resource.hitDice}"
+{/if}{#if resource.speed }speed: "{resource.speed}"
+{/if}str: {resource.scores.strStat}
+dex: {resource.scores.dexStat}
+con: {resource.scores.conStat}
+int: {resource.scores.intStat}
+wis: {resource.scores.wisStat}
+cha: {resource.scores.chaStat}
+pb: "{resource.pb}"
+passive: {resource.passive}
+{#if resource.savingThrows }saves: "{resource.savingThrows}"
+{/if}{#if resource.skills }skills: "{resource.skills}"
+{/if}{#if resource.senses }senses: "{resource.senses}"
+{/if}{#if resource.languages }languages: "{resource.languages}"
+{/if}{#if resource.vulnerable }vulnerable: "{resource.vulnerable}"
+{/if}{#if resource.resist }resist: "{resource.resist}"
+{/if}{#if resource.immune }immune: "{resource.immune}"
+{/if}{#if resource.conditionImmune }conditionImmune: "{resource.conditionImmune}"
+{/if}{#if resource.environment }environment: "{resource.environment}"
+{/if}isNpc: {resource.isNpc}
+{#if resource.token }CLI-Image: "{resource.token.vaultPath}"
+{#else if resource.hasImages }CLI-Image: "{resource.fluffImages.get(0).vaultPath}"
+{/if}---
+# [{resource.name}]({resource.vaultPath})
+*Source: {resource.source}*
+
+```statblock
+{resource.5eStatblockYaml}
+```
+^statblock
+{#if resource.description }
+
+{resource.description}
+{/if}{#if resource.environment }
+
+## Environment
+
+{resource.environment}
+{/if}

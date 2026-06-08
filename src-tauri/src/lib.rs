@@ -19,7 +19,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Serialize, Clone)]
 pub struct HostInfo {
@@ -186,6 +186,60 @@ fn write_text_file(path: String, contents: String) -> Result<(), String> {
         fs::create_dir_all(parent).map_err(|e| format!("create parent: {e}"))?;
     }
     fs::write(&p, contents).map_err(|e| format!("write {path}: {e}"))
+}
+
+/// Copy the app's bundled starter assets into the user's CLI home: the Basic
+/// Test Config (-> <home>/basic-test-config.json) and the custom "properties"
+/// templates (-> <home>/examples/templates/tools5e/). Existing files are
+/// overwritten. Returns the destination paths that were written.
+#[tauri::command]
+fn install_bundled_assets(app: AppHandle, home: String) -> Result<Vec<String>, String> {
+    let res_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("resource dir: {e}"))?
+        .join("resources");
+
+    let home_path = PathBuf::from(&home);
+    let mut written: Vec<String> = vec![];
+
+    // 1) Config -> <home>/basic-test-config.json
+    let cfg_src = res_dir.join("basic-test-config.json");
+    if cfg_src.is_file() {
+        let dest = home_path.join("basic-test-config.json");
+        fs::copy(&cfg_src, &dest).map_err(|e| format!("copy config: {e}"))?;
+        written.push(dest.to_string_lossy().to_string());
+    }
+
+    // 2) Templates -> <home>/examples/templates/tools5e/
+    let tpl_src = res_dir.join("templates").join("tools5e");
+    let tpl_dest_dir = home_path.join("examples").join("templates").join("tools5e");
+    fs::create_dir_all(&tpl_dest_dir).map_err(|e| format!("create template dir: {e}"))?;
+    if tpl_src.is_dir() {
+        for entry in fs::read_dir(&tpl_src)
+            .map_err(|e| format!("read bundled templates: {e}"))?
+            .flatten()
+        {
+            let path = entry.path();
+            let is_txt = path
+                .extension()
+                .and_then(|x| x.to_str())
+                .map(|x| x.eq_ignore_ascii_case("txt"))
+                .unwrap_or(false);
+            if path.is_file() && is_txt {
+                if let Some(name) = path.file_name() {
+                    let dest = tpl_dest_dir.join(name);
+                    fs::copy(&path, &dest).map_err(|e| format!("copy template {name:?}: {e}"))?;
+                    written.push(dest.to_string_lossy().to_string());
+                }
+            }
+        }
+    }
+
+    if written.is_empty() {
+        return Err("No bundled assets found to install.".to_string());
+    }
+    Ok(written)
 }
 
 /// Read a UTF-8 file from anywhere.
@@ -371,6 +425,7 @@ pub fn run() {
             install_cli,
             run_converter,
             write_text_file,
+            install_bundled_assets,
             read_text_file,
             list_files,
             list_files_recursive,

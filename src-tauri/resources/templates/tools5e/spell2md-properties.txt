@@ -1,0 +1,53 @@
+---
+obsidianUIMode: preview
+cssclasses:
+- json5e-spell
+{#if resource.tags }
+tags:
+{#for tag in resource.tags}
+- {tag}
+{/for}{/if}
+{#if resource.classList }
+classes:
+{#each resource.classList}
+- {it}
+{/each}{/if}
+aliases:
+{#each resource.aliases}
+- {it}
+{/each}
+name: "{resource.name}"
+source: "{resource.source}"
+level: "{resource.level}"
+school: "{resource.school}"
+ritual: {resource.ritual}
+castingTime: "{resource.time}"
+range: "{resource.range}"
+components: "{resource.components}"
+duration: "{resource.duration}"
+{#if resource.damageInflict }damage: "{resource.damageInflict}"
+{/if}{#if resource.savingThrows }save: "{resource.savingThrows}"
+{/if}{#if resource.spellAttacks }attack: "{resource.spellAttacks}"
+{/if}{#if resource.conditionInflict }conditions: "{resource.conditionInflict}"
+{/if}{#if resource.hasImages }CLI-Image: "{resource.fluffImages.get(0).vaultPath}"
+{/if}---
+# {resource.name}
+%%-- Embedded content starts on the next line. --%%
+*{resource.level}, {resource.school}{#if resource.ritual} (ritual){/if}*
+{#if resource.hasImages }{resource.showPortraitImage}{/if}
+
+- **Casting time:** {resource.time}{#if resource.ritual} unless cast as a ritual{/if}
+- **Range:** {resource.range}
+- **Components:** {resource.components}
+- **Duration:** {resource.duration}
+
+{resource.text}
+
+{#if resource.hasMoreImages }
+{resource.showMoreImages}
+
+{/if}{#if resource.classes }
+**Classes**: {resource.classes}
+
+{/if}
+*Source: {resource.source}*

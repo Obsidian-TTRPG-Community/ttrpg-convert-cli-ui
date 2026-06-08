@@ -1,0 +1,66 @@
+---
+obsidianUIMode: preview
+cssclasses:
+- json5e-item
+{#if resource.tags }
+tags:
+{#for tag in resource.tags}
+- {tag}
+{/for}{/if}
+aliases:
+{#each resource.aliases}
+- {it}
+{/each}
+name: "{resource.name}"
+source: "{resource.source}"
+{#if resource.detail }detail: "{resource.detail}"
+{/if}{#if resource.cost }cost: "{resource.cost}"
+{/if}{#if resource.weight }weight: {resource.weight}
+{/if}{#if resource.armorClass }armorClass: "{resource.armorClass}"
+{/if}{#if resource.damage }damage: "{resource.damage}"
+{/if}{#if resource.damage2h }damage2h: "{resource.damage2h}"
+{/if}{#if resource.range }range: "{resource.range}"
+{/if}{#if resource.properties }properties: "{resource.properties}"
+{/if}{#if resource.mastery }mastery: "{resource.mastery}"
+{/if}{#if resource.strengthRequirement }strengthRequirement: {resource.strengthRequirement}
+{/if}{#if resource.stealthPenalty }stealthPenalty: {resource.stealthPenalty}
+{/if}{#if resource.hasImages }CLI-Image: "{resource.fluffImages.get(0).vaultPath}"
+{/if}---
+# {resource.name}
+{#if resource.detail }*{resource.detail}*
+{/if}{#if resource.hasImages }{resource.showPortraitImage}{/if}
+
+{#if resource.prerequisite}
+- **Prerequisites**: {resource.prerequisite}
+{/if}{#if resource.armorClass }
+- **Armor Class**: {resource.armorClass}
+{#else if resource.damage }{#if resource.damage2h }
+- **Damage**:
+  - One-handed: {resource.damage}
+  - Two-handed: {resource.damage2h}
+{#else}
+- **Damage**: {resource.damage}
+{/if}{#if resource.range }
+- **Range**: {resource.range}
+{/if}{/if}{#if resource.properties }
+- **Properties**: {resource.properties}
+{/if}{#if resource.mastery }
+- **Mastery**: {resource.mastery}
+{/if}{#if resource.strengthRequirement }
+- **Strength**: Requires {resource.strengthRequirement} STR.
+{/if}{#if resource.stealthPenalty }
+- **Stealth**: The wearer has disadvantage on Stealth (DEX) checks.
+{/if}{#if resource.cost }
+- **Cost**: {resource.cost}
+{/if}{#if resource.weight }
+- **Weight**: {resource.weight} lbs.
+{/if}{#if resource.text }
+
+{resource.text}
+{/if}{#if resource.hasMoreImages }
+
+{resource.showMoreImages}
+
+{/if}
+
+*Source: {resource.source}*

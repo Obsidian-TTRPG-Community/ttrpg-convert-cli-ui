@@ -4,6 +4,25 @@ All notable changes are recorded here. The release workflow pulls the section
 matching a tag (e.g. `v2.0.0`) into the GitHub release notes, ahead of the
 auto-generated "What's Changed" list.
 
+## v2.4.0 — Starter pack: Basic Test Config + property templates
+
+- A new **Starter pack** item on the Setup tab installs bundled assets into your
+  CLI home with one click: a ready-to-run **Basic Test Config**
+  (`basic-test-config.json` — Lost Mine of Phandelver plus the 2024 core books,
+  Fantasy Statblocks on) and three **custom "properties" templates** for
+  monsters, spells, and items. They're shipped inside the app (Tauri
+  `bundle.resources`) and copied in by the Rust `install_bundled_assets` command,
+  so no download is needed. The Setup row shows ✓ once they're present.
+- The custom templates put **every key stat into the note's frontmatter
+  properties** (visible in Obsidian's Properties view and queryable by Dataview)
+  and add a **`CLI-Image`** property pointing at the note's primary image — the
+  token for monsters (falling back to the first portrait/fluff image), and the
+  first fluff image for spells and items.
+- The **monster** template (`monster2md-properties-statblock.txt`) places the
+  Fantasy Statblocks block **above** the body content, since the statblock is the
+  most important part of a creature note. Its name includes `statblock`, so it
+  appears in the Configure tab's monster dropdown when Fantasy Statblocks is on.
+
 ## v2.3.0 — Thank the developer
 
 - A new **♥ button in the top bar** opens a *Thank the developer* dialog. The

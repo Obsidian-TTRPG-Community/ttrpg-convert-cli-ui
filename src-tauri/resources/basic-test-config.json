@@ -1,0 +1,38 @@
+{
+  "sources": {
+    "adventure": [
+      "LMoP"
+    ],
+    "book": [
+      "XMM",
+      "XPHB",
+      "XDMG"
+    ],
+    "reference": [],
+    "homebrew": []
+  },
+  "paths": {
+    "rules": "rules",
+    "compendium": "compendium"
+  },
+  "images": {
+    "copyInternal": true,
+    "copyExternal": true,
+    "internalRoot": "5etools-img"
+  },
+  "yamlStatblocks": true,
+  "reprintBehavior": "newest",
+  "useDiceRoller": false,
+  "tagPrefix": "ttrpg",
+  "template": {
+    "background": "examples/templates/tools5e/images-background2md.txt",
+    "class": "examples/templates/tools5e/images-class2md.txt",
+    "item": "examples/templates/tools5e/item2md-properties.txt",
+    "monster": "examples/templates/tools5e/monster2md-properties-statblock.txt",
+    "object": "examples/templates/tools5e/images-object2md.txt",
+    "race": "examples/templates/tools5e/images-race2md.txt",
+    "spell": "examples/templates/tools5e/spell2md-properties.txt",
+    "subclass": "examples/templates/tools5e/images-subclass2md.txt",
+    "vehicle": "examples/templates/tools5e/images-vehicle2md.txt"
+  }
+}

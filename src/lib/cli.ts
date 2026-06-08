@@ -163,6 +163,14 @@ export async function gitPull(repoDir: string, onLine: (line: string) => void): 
   });
 }
 
+/**
+ * Install the app's bundled starter assets (the Basic Test Config + the custom
+ * "properties" templates) into `home`. Returns the destination paths written.
+ */
+export function installBundledAssets(home: string): Promise<string[]> {
+  return invoke<string[]>("install_bundled_assets", { home });
+}
+
 /** Write a config file directly into the home folder. Returns the full path. */
 export async function writeConfigFile(home: string, name: string, text: string): Promise<string> {
   const path = joinHome(home, name);

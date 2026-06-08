@@ -8,7 +8,7 @@ import { buildConfigJson, configToFields, toList, TEMPLATE_KEYS_5E, type ConfigI
 import {
   detectHost, pathExists, findConverter, installCli, installTemplates, runConverter, gitClone, gitPull,
   writeConfigFile, readTextFile, listTemplates, listConfigs, loadIndexKeys, loadSources,
-  pickFolder, joinHome, TEMPLATES_REL, saveTemplate, readTemplate, openPath,
+  installBundledAssets, pickFolder, joinHome, TEMPLATES_REL, saveTemplate, readTemplate, openPath,
   checkAppUpdate, listHomebrew, type Progress,
 } from "./lib/cli";
 import { APP_RELEASES_PAGE, type AppUpdate } from "./lib/update-check";
@@ -816,12 +816,13 @@ $("#open-sourcemap-cfg").addEventListener("click", () =>
 const present: Record<string, boolean> = {};
 const LIB_BTN: Record<string, string> = {
   cli: "#install-cli", data: "#clone-src", templates: "#get-templates",
-  images: "#clone-img", homebrew: "#clone-homebrew",
+  starter: "#get-starter", images: "#clone-img", homebrew: "#clone-homebrew",
 };
 const LIB_LABEL: Record<string, [string, string]> = {
   cli: ["Install", "Update"],
   data: ["Get data", "Update"],
   templates: ["Get templates", "Update"],
+  starter: ["Install", "Reinstall"],
   images: ["Get images", "Update"],
   homebrew: ["Get homebrew", "Update"],
 };
@@ -836,7 +837,7 @@ function setLibState(key: string, ok: boolean, detail?: string) {
     btn.textContent = LIB_LABEL[key][ok ? 1 : 0];
     // Present → solid amber "Update". Absent optional items stay de-emphasised.
     if (ok) btn.classList.remove("ghost");
-    else if (key === "images" || key === "homebrew") btn.classList.add("ghost");
+    else if (key === "images" || key === "homebrew" || key === "starter") btn.classList.add("ghost");
   }
 }
 async function refreshLibrary() {
@@ -849,12 +850,17 @@ async function refreshLibrary() {
   const dataPath = joinHome(home, "5etools-src", "data");
   const dataOk = await pathExists(dataPath);
   const tplOk = await pathExists(joinHome(home, ...TEMPLATES_REL.split("/")));
+  // Starter pack present if its signature monster template has been copied in.
+  const starterOk = await pathExists(
+    joinHome(home, ...TEMPLATES_REL.split("/"), "monster2md-properties-statblock.txt"),
+  );
   const imgOk = await pathExists(joinHome(home, "5etools-img"));
   const hbOk = await pathExists(joinHome(home, "homebrew"));
 
   // 2) Update the whole UI from those reads.
   setLibState("cli", !!found, found ?? "not installed");
   setLibState("data", dataOk);
+  setLibState("starter", starterOk);
   setLibState("templates", tplOk);
   setLibState("images", imgOk);
   setLibState("homebrew", hbOk);
@@ -931,6 +937,19 @@ $("#get-templates").addEventListener("click", async () => {
     await refreshLibrary();
     await refreshTemplates();
   } catch (e) { log(`Templates failed: ${e}`); }
+});
+
+$("#get-starter").addEventListener("click", async () => {
+  if (!state.cliHome) return log("Pick a CLI home folder first.");
+  if (!present.templates) log("Tip: run Get templates first so the starter templates sit alongside the full set.");
+  try {
+    const written = await installBundledAssets(state.cliHome);
+    log(`Starter pack installed (${written.length} file(s)): Basic Test Config + custom property templates.`);
+    log("Open the Configure tab, choose basic-test-config.json, or pick the new monster/spell/item templates.");
+    await refreshLibrary();
+    await refreshTemplates();
+    await refreshConfigList();
+  } catch (e) { log(`Starter pack failed: ${e}`); }
 });
 
 $("#clone-src").addEventListener("click", () => doRepo("data", "https://github.com/5etools-mirror-3/5etools-src", "5etools-src", true));
