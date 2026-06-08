@@ -4,6 +4,16 @@ All notable changes are recorded here. The release workflow pulls the section
 matching a tag (e.g. `v2.0.0`) into the GitHub release notes, ahead of the
 auto-generated "What's Changed" list.
 
+## v2.3.0 — Thank the developer
+
+- A new **♥ button in the top bar** opens a *Thank the developer* dialog. The
+  CLI converter this app drives is built and maintained by **ebullient** — the
+  dialog credits her work and gathers the ways she's set up to receive thanks:
+  **Buy Me a Coffee**, **GitHub Sponsors**, **Open Collective**, and a link to
+  star the converter repo. It shows her cartoon avatar (loaded from GitHub, with
+  a graceful fallback when offline). Links open in your browser via the existing
+  external-link handling.
+
 ## v2.2.0 — Homebrew source browser
 
 - The one-file-at-a-time homebrew picker is replaced by a **categorised browser**

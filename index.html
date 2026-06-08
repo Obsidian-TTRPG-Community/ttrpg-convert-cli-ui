@@ -28,6 +28,7 @@
         </div>
       </div>
       <div class="topbar-right">
+        <button id="thanks-btn" class="thanks-btn" title="Thank the developer" aria-label="Thank the developer">♥</button>
         <select id="theme-select" class="theme-select" title="Theme" aria-label="Theme">
           <option value="system">◐ System</option>
           <option value="light">☀ Light</option>
@@ -390,6 +391,30 @@ tags:
         <div class="modal-foot">
           <span id="homebrew-count" class="hint"></span>
           <button id="homebrew-add" class="btn">Add selected</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- thank the developer modal -->
+    <div id="thanks-modal" class="modal" hidden>
+      <div class="modal-box thanks">
+        <div class="modal-head">
+          <span>Thank the developer</span>
+          <button id="thanks-modal-close" class="btn ghost sm">✕</button>
+        </div>
+        <div class="thanks-body">
+          <img class="thanks-avatar" src="https://github.com/ebullient.png" alt="ebullient's cartoon"
+               referrerpolicy="no-referrer" onerror="this.classList.add('thanks-avatar-missing')" />
+          <p class="thanks-lede">The <strong>ttrpg-convert-cli</strong> converter — the engine this app drives —
+          is built and maintained by <strong>ebullient</strong>. This UI is just a friendly wrapper around years
+          of her hard work. If it's saved you some time, here are the ways she's set up to say thanks.</p>
+          <div class="thanks-links">
+            <button class="btn ext-link" data-url="https://buymeacoffee.com/ebullient">☕ Buy her a coffee</button>
+            <button class="btn ext-link" data-url="https://github.com/sponsors/ebullient">♥ Sponsor on GitHub</button>
+            <button class="btn ghost ext-link" data-url="https://opencollective.com/commonhaus-foundation">Open Collective</button>
+            <button class="btn ghost ext-link" data-url="https://github.com/ebullient/ttrpg-convert-cli">⭐ Star the project</button>
+          </div>
+          <p class="hint thanks-foot">Links open in your browser. The converter is hers — this UI just stands on her shoulders.</p>
         </div>
       </div>
     </div>

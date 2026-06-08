@@ -437,6 +437,32 @@ textarea:focus { border-color: var(--amber); }
 }
 .modal-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
 
+/* ---- thank the developer ---- */
+.thanks-btn {
+  margin: 0; padding: 0; width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px; line-height: 1; cursor: pointer;
+  color: var(--rust); background: transparent;
+  border: 1px solid var(--line); border-radius: 8px;
+  transition: all 0.15s ease;
+}
+.thanks-btn:hover {
+  color: var(--bg); background: var(--rust);
+  border-color: var(--rust); transform: scale(1.06);
+  box-shadow: 0 2px 10px rgba(194, 103, 74, 0.35);
+}
+.modal-box.thanks { width: min(460px, 92vw); text-align: center; }
+.thanks-body { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.thanks-avatar {
+  width: 96px; height: 96px; border-radius: 50%;
+  object-fit: cover; border: 2px solid var(--amber-soft);
+  box-shadow: 0 6px 20px var(--shadow); background: var(--inset);
+}
+.thanks-avatar-missing { display: none; }
+.thanks-lede { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink); }
+.thanks-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 2px; }
+.thanks-foot { margin: 2px 0 0; }
+
 /* ---- disabled actions (readiness gating) ---- */
 .btn:disabled {
   opacity: 0.38; cursor: not-allowed; transform: none; box-shadow: none;

@@ -289,6 +289,14 @@ $("#guide-modal-close").addEventListener("click", () => (($("#guide-modal") as H
 $("#guide-modal").addEventListener("click", (e) => {
   if (e.target === $("#guide-modal")) ($("#guide-modal") as HTMLElement).hidden = true;
 });
+
+/* ---- thank the developer modal ---- */
+$("#thanks-btn").addEventListener("click", () => (($("#thanks-modal") as HTMLElement).hidden = false));
+$("#thanks-modal-close").addEventListener("click", () => (($("#thanks-modal") as HTMLElement).hidden = true));
+$("#thanks-modal").addEventListener("click", (e) => {
+  if (e.target === $("#thanks-modal")) ($("#thanks-modal") as HTMLElement).hidden = true;
+});
+
 document.querySelectorAll<HTMLButtonElement>(".ext-link").forEach((b) =>
   b.addEventListener("click", () => { const u = b.dataset.url; if (u) openUrl(u).catch((e) => log(`${e}`)); }),
 );
