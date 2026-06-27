@@ -4,6 +4,17 @@ All notable changes are recorded here. The release workflow pulls the section
 matching a tag (e.g. `v2.0.0`) into the GitHub release notes, ahead of the
 auto-generated "What's Changed" list.
 
+## v2.4.1 — Linux blank-window fix
+
+- Fixes a **blank white window on launch** affecting some Linux setups — notably
+  KDE Plasma 6 / Wayland on Fedora-atomic distros such as **Bazzite**, and
+  systems on NVIDIA's proprietary drivers. The app's WebKitGTK webview defaults
+  to a hardware-accelerated DMA-BUF renderer that fails to paint on these
+  configurations, leaving the window blank. The app now disables that renderer
+  on Linux at startup (`WEBKIT_DISABLE_DMABUF_RENDERER=1`, unless you've already
+  set it yourself), forcing the reliable fallback path. No change on Windows or
+  macOS. (#12)
+
 ## v2.4.0 — Starter pack: Basic Test Config + property templates
 
 - A new **Starter pack** item on the Setup tab installs bundled assets into your
