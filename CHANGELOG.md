@@ -4,6 +4,19 @@ All notable changes are recorded here. The release workflow pulls the section
 matching a tag (e.g. `v2.0.0`) into the GitHub release notes, ahead of the
 auto-generated "What's Changed" list.
 
+## v2.4.2 — macOS "Permission denied" run fix
+
+- Fixes **`Run failed: spawn … ttrpg-convert: Permission denied (os error 13)`**
+  on macOS (and Linux). The converter binary could be spawned without an
+  executable bit set — the bundled zip extractor doesn't preserve Unix file
+  modes, and installs located from a remembered or manually-extracted folder
+  (`find_converter`) never got `chmod`'d, since that only ran during a fresh
+  in-app install. `run_converter` now self-heals: right before spawning on Unix
+  it adds the execute bits (`0o111`) to the binary, and on macOS it strips the
+  `com.apple.quarantine` attribute so Gatekeeper doesn't block a build the user
+  downloaded through a browser. Both steps are best-effort and no-op when not
+  needed. No change on Windows.
+
 ## v2.4.1 — Linux blank-window fix
 
 - Fixes a **blank white window on launch** affecting some Linux setups — notably

@@ -156,6 +156,32 @@ async fn run_converter(
     use std::io::{BufRead, BufReader};
     use std::process::{Command, Stdio};
 
+    // Self-heal before spawning: the binary may have arrived without an
+    // executable bit (zip extraction drops Unix modes, and installs located via
+    // `find_converter` — remembered or manually-extracted folders — never get
+    // chmod'd). Without this, `run_converter` fails with EACCES / "Permission
+    // denied (os error 13)". Also strip macOS quarantine so Gatekeeper doesn't
+    // block a binary the user downloaded through a browser.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(&exe_path) {
+            let mut perms = meta.permissions();
+            // Add owner/group/other execute bits without clobbering read/write.
+            perms.set_mode(perms.mode() | 0o111);
+            let _ = fs::set_permissions(&exe_path, perms);
+        }
+        #[cfg(target_os = "macos")]
+        {
+            // Best-effort; harmless if the attribute isn't present.
+            let _ = Command::new("xattr")
+                .arg("-d")
+                .arg("com.apple.quarantine")
+                .arg(&exe_path)
+                .output();
+        }
+    }
+
     let mut child = Command::new(&exe_path)
         .args(&args)
         .current_dir(&cwd)

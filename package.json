@@ -1,7 +1,7 @@
 {
   "name": "ttrpg-convert-cli-ui",
   "private": true,
-  "version": "2.4.1",
+  "version": "2.4.2",
   "type": "module",
   "description": "Cross-platform UI for the ttrpg-convert-cli (Windows, macOS, Linux).",
   "scripts": {
