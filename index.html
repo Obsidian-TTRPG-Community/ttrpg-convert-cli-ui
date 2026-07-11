@@ -303,7 +303,10 @@
         </div>
 
         <div class="creator-foot">
-          <label class="ctrl grow">File name
+          <label class="ctrl grow">
+            <span class="label-row">File name
+              <span class="info-icon" tabindex="0" role="note" aria-label="Why the file name matters">i<span class="info-tip">The file name is how the app finds your template. To show up in a type's dropdown, the name must contain that type's keyword — e.g. <b>background</b>, <b>monster</b>, <b>spell</b> (and <b>statblock</b> too for Fantasy Statblocks monsters; <b>class</b> must not contain <b>subclass</b>). It's filled in for you from the Type above — only change it if you know the keyword rule.</span></span>
+            </span>
             <input id="creator-filename" type="text" spellcheck="false" placeholder="my-background2md.txt" />
           </label>
           <button id="creator-save" class="btn primary">Save template</button>

@@ -11,6 +11,24 @@
  * helper/extension methods aren't evaluated.
  */
 
+/**
+ * Suggest a file name for a newly-created template so the config dropdowns pick
+ * it up automatically. The Configure-tab dropdowns filter templates purely by
+ * FILE NAME (each key's `<select>` shows a file only if its name contains that
+ * key as a substring — with `statblock` also required for the Fantasy-Statblocks
+ * monster variant, and `subclass` distinguishing class vs. subclass). So the
+ * chosen name MUST embed the type keyword or the template will never appear in
+ * the list. This returns a safe default that satisfies those rules.
+ *
+ * The `my-` prefix keeps it distinct from the installed stock templates
+ * (e.g. `background2md.txt`) so saving doesn't silently overwrite them.
+ */
+export function suggestTemplateFilename(type: string, fant: boolean): string {
+  const t = type.toLowerCase().trim();
+  if (t === "monster") return fant ? "my-monster2md-statblock.txt" : "my-monster2md.txt";
+  return `my-${t}2md.txt`;
+}
+
 /** Pull unique `resource.*` references out of a template's text, sorted. */
 export function extractVariables(text: string): string[] {
   const set = new Set<string>();

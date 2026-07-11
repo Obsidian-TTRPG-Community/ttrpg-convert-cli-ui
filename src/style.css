@@ -627,6 +627,33 @@ li.open > .vt-row .vt-caret { transform: rotate(90deg); }
 .md-link { color: var(--moss); text-decoration: underline dotted; }
 
 .creator-foot { display: flex; align-items: flex-end; gap: 12px; margin-top: 12px; }
+.creator-foot .ctrl.grow {
+  flex: 1; display: flex; flex-direction: column; gap: 3px;
+  font-size: 11px; color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.04em;
+}
+.label-row { display: flex; align-items: center; gap: 6px; }
+
+/* Info icon + hover/focus tooltip explaining the file-name rule. */
+.info-icon {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 1px solid var(--amber-soft); color: var(--amber-soft);
+  font-family: var(--serif, Georgia, serif); font-style: italic; font-weight: 700;
+  font-size: 11px; line-height: 1; text-transform: none; cursor: help; user-select: none;
+}
+.info-icon:hover, .info-icon:focus-visible { background: var(--amber-soft); color: var(--bg); outline: none; }
+.info-tip {
+  position: absolute; bottom: calc(100% + 8px); left: 0;
+  width: 320px; max-width: 70vw; padding: 9px 11px; z-index: 30;
+  background: var(--bg-2); color: var(--ink); border: 1px solid var(--line); border-radius: 7px;
+  box-shadow: 0 6px 18px var(--shadow);
+  font-family: var(--sans, system-ui, sans-serif); font-size: 12px; font-style: normal; font-weight: 400;
+  text-transform: none; letter-spacing: 0; line-height: 1.5; text-align: left;
+  opacity: 0; visibility: hidden; transition: opacity 0.12s; pointer-events: none;
+}
+.info-tip b { color: var(--amber); font-weight: 600; }
+.info-icon:hover .info-tip, .info-icon:focus-visible .info-tip,
+.info-icon:focus .info-tip { opacity: 1; visibility: visible; }
 
 @media (max-width: 860px) {
   .creator-main { grid-template-columns: 1fr; }

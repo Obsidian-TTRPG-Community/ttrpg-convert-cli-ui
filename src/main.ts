@@ -15,7 +15,7 @@ import { APP_RELEASES_PAGE, type AppUpdate } from "./lib/update-check";
 import { parseHomebrew, groupHomebrew, matchesQuery, type HomebrewEntry } from "./lib/homebrew";
 import { filterKeys } from "./lib/index";
 import { type SourceEntry } from "./lib/sources";
-import { renderTemplatePreview, buildSample, buildVariableTree, type VarNode } from "./lib/template-creator";
+import { renderTemplatePreview, buildSample, buildVariableTree, suggestTemplateFilename, type VarNode } from "./lib/template-creator";
 import { conversionGuidance, pluginUrl } from "./lib/guidance";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { getVersion } from "@tauri-apps/api/app";
@@ -28,6 +28,7 @@ const persist = () => void saveState(state);
 let indexKeys: string[] = []; // transient, from all-index.json
 let creatorTree: VarNode[] = [];
 let creatorTreeEmpty = true;
+let creatorFilenameAuto = ""; // last auto-suggested filename; lets us prefill without clobbering user edits
 const INDEX_OUT = "_index"; // throwaway output folder used to generate the index
 const sourceCache: Partial<Record<"book" | "adventure", SourceEntry[]>> = {};
 
@@ -473,8 +474,21 @@ function renderCreatorPreview() {
   $("#creator-preview").innerHTML = mdToHtml(md);
 }
 
+/** Auto-fill the file name to match the type, so the config dropdown will pick
+ *  it up — but never overwrite a name the user has typed themselves. */
+function suggestCreatorFilename() {
+  const input = $("#creator-filename") as HTMLInputElement;
+  const cur = input.value.trim();
+  if (cur !== "" && cur !== creatorFilenameAuto) return; // user customised it; leave alone
+  const fant = (cfgEl("useFantasyStatblocks") as HTMLInputElement)?.checked ?? false;
+  const suggestion = suggestTemplateFilename(creatorType(), fant);
+  input.value = suggestion;
+  creatorFilenameAuto = suggestion;
+}
+
 async function onCreatorType() {
   const type = creatorType();
+  suggestCreatorFilename();
   await Promise.all([loadCreatorVars(type), loadCreatorStartFrom(type)]);
   renderCreatorPreview();
 }
@@ -491,11 +505,22 @@ async function saveCreatorTemplate() {
   let name = ($("#creator-filename") as HTMLInputElement).value.trim();
   if (!name) return log("Enter a file name for the template.");
   if (!/\.txt$/i.test(name)) name += ".txt";
+  const type = creatorType();
+  const fant = (cfgEl("useFantasyStatblocks") as HTMLInputElement)?.checked ?? false;
+  const willShow = tplPredicate(type, fant)(name);
   try {
     await saveTemplate(state.cliHome, name, ($("#creator-editor") as HTMLTextAreaElement).value);
     log(`Saved template: ${name}`);
+    // Preselect the new file in its dropdown so it's ready to use immediately.
+    if (willShow) state.configFields[`tpl_${type}`] = name;
     await refreshTemplates();   // surface it in the config dropdowns
-    await loadCreatorStartFrom(creatorType());
+    if (!willShow) {
+      const hint = suggestTemplateFilename(type, fant);
+      log(`Heads up: "${name}" won't appear in the ${type} dropdown — the name must contain "${type}"` +
+        (type === "monster" && fant ? ' and "statblock"' : "") + `. Try something like "${hint}".`);
+    }
+    creatorFilenameAuto = ""; // next new template gets a fresh suggestion
+    await loadCreatorStartFrom(type);
   } catch (e) { log(`Could not save template: ${e}`); }
 }
 

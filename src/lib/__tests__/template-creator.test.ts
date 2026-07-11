@@ -1,5 +1,53 @@
 import { describe, it, expect } from "vitest";
-import { extractVariables, renderTemplatePreview, buildSample, buildVariableTree, type VarNode } from "../template-creator";
+import { extractVariables, renderTemplatePreview, buildSample, buildVariableTree, suggestTemplateFilename, type VarNode } from "../template-creator";
+
+// Mirror of the dropdown filter in main.ts (tplPredicate), so we can assert that
+// every suggested filename actually gets picked up by its type's dropdown.
+function tplPredicate(key: string, fant: boolean): (name: string) => boolean {
+  const k = key.toLowerCase();
+  return (name) => {
+    const l = name.toLowerCase();
+    if (key === "monster") return l.includes("monster") && (fant ? l.includes("statblock") : !l.includes("statblock"));
+    if (key === "class") return l.includes("class") && !l.includes("subclass");
+    if (key === "subclass") return l.includes("subclass");
+    return l.includes(k);
+  };
+}
+
+describe("suggestTemplateFilename", () => {
+  const keys = ["background", "class", "deck", "deity", "feat", "hazard", "item",
+    "monster", "note", "object", "psionic", "race", "reward", "spell", "subclass", "vehicle"];
+
+  it("produces a name the type's dropdown will list (plain)", () => {
+    for (const k of keys) {
+      const name = suggestTemplateFilename(k, false);
+      expect(tplPredicate(k, false)(name), `${k}: ${name}`).toBe(true);
+    }
+  });
+
+  it("adds statblock for the Fantasy-Statblocks monster variant", () => {
+    const name = suggestTemplateFilename("monster", true);
+    expect(name).toContain("statblock");
+    expect(tplPredicate("monster", true)(name)).toBe(true);
+  });
+
+  it("keeps the plain monster name out of the statblock filter and vice versa", () => {
+    expect(tplPredicate("monster", true)(suggestTemplateFilename("monster", false))).toBe(false);
+    expect(tplPredicate("monster", false)(suggestTemplateFilename("monster", true))).toBe(false);
+  });
+
+  it("does not collide class with subclass", () => {
+    const cls = suggestTemplateFilename("class", false);
+    expect(tplPredicate("class", false)(cls)).toBe(true);
+    expect(tplPredicate("subclass", false)(cls)).toBe(false);
+  });
+
+  it("ends in .txt and stays distinct from stock templates", () => {
+    const name = suggestTemplateFilename("background", false);
+    expect(name).toMatch(/\.txt$/);
+    expect(name).not.toBe("background2md.txt");
+  });
+});
 
 // A realistic snippet mirroring the converter's images-background2md.txt shape.
 const TEMPLATE = `---
