@@ -119,6 +119,24 @@ jobs:
 
       - run: npm install
 
+      # Keep the built artifact version in lockstep with the git tag so the
+      # bundle filenames (e.g. TTRPG.Convert.CLI.UI_2.5.0_...) can never drift
+      # from the release. The tag is the single source of truth.
+      - name: Sync version from tag
+        run: |
+          set -e
+          VER="${GITHUB_REF_NAME#v}"
+          node -e '
+            const fs = require("fs");
+            const ver = process.argv[1];
+            for (const f of ["package.json", "src-tauri/tauri.conf.json"]) {
+              const j = JSON.parse(fs.readFileSync(f, "utf8"));
+              j.version = ver;
+              fs.writeFileSync(f, JSON.stringify(j, null, 2) + "\n");
+            }
+          ' "$VER"
+          echo "Set version to $VER"
+
       # Tauri's beforeBuildCommand runs `npm run build` (tsc + vite) for us.
       - name: Build installers
         env:
